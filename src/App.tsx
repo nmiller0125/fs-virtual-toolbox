@@ -411,6 +411,31 @@ function beaconKey(b: any) {
 // UI Shell
 // -----------------------------
 
+function ThemeVars({ theme, children }: any) {
+  return (
+    <div
+      style={
+        {
+          // @ts-ignore
+          "--accent": theme.accent,
+          // @ts-ignore
+          "--bg": theme.bg,
+          // @ts-ignore
+          "--text": theme.text,
+          // @ts-ignore
+          "--surface": theme.surface,
+          // @ts-ignore
+          "--border": theme.border,
+          // @ts-ignore
+          "--muted": theme.muted,
+        } as React.CSSProperties
+      }
+    >
+      {children}
+    </div>
+  );
+}
+
 function PhoneFrame({ children, bottomBar, theme }: any) {
   return (
     <div
@@ -694,7 +719,8 @@ function SettingsModal(props: any) {
   const { theme, themeKey, onClose } = props;
   const overlayBg = themeKey === "dark" ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.18)";
   return (
-    <div
+    <ThemeVars theme={theme}>
+      <div
       role="dialog"
       aria-modal="true"
       onClick={onClose}
@@ -703,7 +729,8 @@ function SettingsModal(props: any) {
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 390 }}>
         <SettingsPanel {...props} />
       </div>
-    </div>
+          </div>
+    </ThemeVars>
   );
 }
 
@@ -727,6 +754,9 @@ function TileButton({ icon, title, subtitle, onClick, theme }: any) {
         flexDirection: "column",
         gap: 10,
         boxSizing: "border-box",
+        overflow: "hidden",
+        maxWidth: "100%",
+        minWidth: 0,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -780,7 +810,7 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
       <SurfaceCard theme={theme} style={{ padding: 14 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: 13, color: theme.muted }}>Choose a tool.</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
             <TileButton
               theme={theme}
               onClick={onOpenBeacon}
@@ -1580,8 +1610,9 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       </PhoneFrame>
 
       {cameraOpen ? (
-        <div
-          role="dialog"
+        <ThemeVars theme={theme}>
+          <div
+            role="dialog"
           aria-modal="true"
           onClick={() => setCameraOpen(false)}
           style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.55)" }}
@@ -1608,7 +1639,8 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
               )}
             </SurfaceCard>
           </div>
-        </div>
+                  </div>
+        </ThemeVars>
       ) : null}
     </>
   );
