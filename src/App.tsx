@@ -94,7 +94,16 @@ function Button({ children, onClick, disabled, variant = "default", style, class
         (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
       }}
     >
-      {children}
+      {/* Global styling fixes for native controls (select/option/file) */}
+          <style>{`
+            :root { color-scheme: light dark; }
+            select, input, button { font-family: inherit; }
+            select { color: var(--text) !important; background: var(--surface) !important; }
+            select option { color: var(--text) !important; background: var(--bg) !important; }
+            input[type="file"] { color: var(--text) !important; }
+          `}</style>
+
+          {children}
     </button>
   );
 }
@@ -680,7 +689,7 @@ function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport
   return (
     <SurfaceCard theme={theme} style={{ width: "100%", maxWidth: 360, backgroundColor: panelBg, border: `1px solid ${panelBorder}`, boxShadow: "0 18px 50px rgba(0,0,0,0.22)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.2 }}>Settings</div>
+        <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.2, color: theme.text }}>Settings</div>
         <Button variant="secondary" onClick={onClose} style={{ borderColor: theme.border }}>
           Close
         </Button>
@@ -689,14 +698,14 @@ function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport
       <Separator />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontWeight: 900, fontSize: 13 }}>Appearance</div>
+        <div style={{ fontWeight: 900, fontSize: 13, color: theme.text }}>Appearance</div>
         <ThemeToggle themeKey={themeKey} setThemeKey={setThemeKey} theme={theme} />
       </div>
 
       <Separator />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontWeight: 900, fontSize: 13 }}>Import beacon assets (CSV)</div>
+        <div style={{ fontWeight: 900, fontSize: 13, color: theme.text }}>Import beacon assets (CSV)</div>
         <Input type="file" accept=".csv,text/csv" onChange={(e: any) => setImportFile(e.target.files?.[0] || null)} />
         <Button onClick={onImport} disabled={mode !== "backend"}>
           Import
@@ -724,7 +733,7 @@ function SettingsModal(props: any) {
       role="dialog"
       aria-modal="true"
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: overlayBg }}
+      style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: overlayBg, color: theme.text }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 390 }}>
         <SettingsPanel {...props} />
@@ -1615,7 +1624,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             role="dialog"
           aria-modal="true"
           onClick={() => setCameraOpen(false)}
-          style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.55)" }}
+          style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(0,0,0,0.55)", color: theme.text }}
         >
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 390 }}>
             <SurfaceCard theme={theme} style={{ padding: 14 }}>
