@@ -26,9 +26,9 @@ type BtnVariant = "default" | "secondary" | "destructive";
 
 function Button({ children, onClick, disabled, variant = "default", style, className, title, type }: any) {
   const base: React.CSSProperties = {
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(0,0,0,0.12)",
+    padding: "10px 14px",
+    borderRadius: 14,
+    border: "1px solid var(--border)",
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
     display: "inline-flex",
@@ -37,12 +37,32 @@ function Button({ children, onClick, disabled, variant = "default", style, class
     gap: 8,
     userSelect: "none",
     background: "transparent",
+    color: "var(--text)",
+    fontWeight: 600,
+    lineHeight: 1,
+    transition: "transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease",
+    boxShadow: "0 1px 0 rgba(0,0,0,0.05)",
   };
 
   const variants: Record<BtnVariant, React.CSSProperties> = {
-    default: { background: "rgba(0,0,0,0.08)" },
-    secondary: { background: "transparent" },
-    destructive: { background: "rgba(220, 38, 38, 0.15)", border: "1px solid rgba(220, 38, 38, 0.4)" },
+    default: {
+      background: "var(--accent)",
+      borderColor: "color-mix(in srgb, var(--accent) 65%, var(--border))",
+      color: "var(--bg)",
+      boxShadow: "0 10px 24px rgba(0,0,0,0.14)",
+    },
+    secondary: {
+      background: "var(--surface)",
+      borderColor: "var(--border)",
+      color: "var(--text)",
+      boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
+    },
+    destructive: {
+      background: "rgba(220, 38, 38, 0.16)",
+      border: "1px solid rgba(220, 38, 38, 0.4)",
+      color: "var(--text)",
+      boxShadow: "0 6px 16px rgba(0,0,0,0.08)",
+    },
   };
 
   return (
@@ -52,14 +72,24 @@ function Button({ children, onClick, disabled, variant = "default", style, class
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       className={className}
-      style={{ ...base, ...variants[variant], ...style }}
+      style={{ ...base, ...(variants[variant] ?? variants.secondary), ...style }}
+      onMouseDown={(e) => {
+        if (disabled) return;
+        (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.98)";
+      }}
+      onMouseUp={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+      }}
     >
       {children}
     </button>
   );
 }
 
-function Input({ value, onChange, placeholder, type = "text", accept, className, style }: any) {
+function Input({ value, onChange, placeholder, type = "text", accept, className, style, ...rest }: any) {
   return (
     <input
       value={value}
@@ -68,13 +98,17 @@ function Input({ value, onChange, placeholder, type = "text", accept, className,
       type={type}
       accept={accept}
       className={className}
+      {...rest}
       style={{
         width: "100%",
-        padding: "10px 12px",
-        borderRadius: 12,
-        border: "1px solid rgba(0,0,0,0.18)",
-        background: "transparent",
+        padding: "12px 12px",
+        borderRadius: 14,
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+        color: "var(--text)",
         outline: "none",
+        boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+        fontSize: 15,
         ...style,
       }}
     />
@@ -83,9 +117,21 @@ function Input({ value, onChange, placeholder, type = "text", accept, className,
 
 function Badge({ children, variant = "default", className, style }: any) {
   const styles: Record<string, React.CSSProperties> = {
-    default: { background: "rgba(0,0,0,0.10)" },
-    secondary: { background: "rgba(0,0,0,0.06)" },
-    destructive: { background: "rgba(220, 38, 38, 0.15)", border: "1px solid rgba(220, 38, 38, 0.35)" },
+    default: {
+      background: "color-mix(in srgb, var(--accent) 18%, var(--surface))",
+      border: "1px solid color-mix(in srgb, var(--accent) 30%, var(--border))",
+      color: "var(--text)",
+    },
+    secondary: {
+      background: "var(--surface)",
+      border: "1px solid var(--border)",
+      color: "var(--muted)",
+    },
+    destructive: {
+      background: "rgba(220, 38, 38, 0.14)",
+      border: "1px solid rgba(220, 38, 38, 0.35)",
+      color: "var(--text)",
+    },
   };
   return (
     <span
@@ -93,11 +139,12 @@ function Badge({ children, variant = "default", className, style }: any) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        padding: "3px 8px",
+        padding: "4px 10px",
         borderRadius: 999,
         fontSize: 12,
-        border: "1px solid rgba(0,0,0,0.12)",
-        ...styles[variant] ?? styles.default,
+        fontWeight: 600,
+        letterSpacing: 0.2,
+        ...(styles[variant] ?? styles.secondary),
         ...style,
       }}
     >
@@ -107,7 +154,7 @@ function Badge({ children, variant = "default", className, style }: any) {
 }
 
 function Separator({ style }: any) {
-  return <div style={{ width: "100%", height: 1, background: "rgba(0,0,0,0.12)", margin: "10px 0", ...style }} />;
+  return <div style={{ width: "100%", height: 1, background: "var(--border)", margin: "12px 0", ...style }} />;
 }
 
 // Tabs (minimal)
@@ -137,18 +184,24 @@ function TabsTrigger({ children, value, disabled }: any) {
 }
 
 // Select (native; supports existing JSX shape)
-function Select({ value, onValueChange, children }: any) {
+function Select({ value, onValueChange, children, style }: any) {
   return (
     <select
       value={value}
       onChange={(e) => onValueChange(e.target.value)}
       style={{
         width: "100%",
-        padding: "10px 12px",
-        borderRadius: 12,
-        border: "1px solid rgba(0,0,0,0.18)",
-        background: "transparent",
+        padding: "12px 12px",
+        borderRadius: 14,
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+        color: "var(--text)",
         outline: "none",
+        fontSize: 15,
+        boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
+        appearance: "none",
+        WebkitAppearance: "none",
+        ...style,
       }}
     >
       {children}
@@ -374,12 +427,51 @@ function ThemeToggle({ themeKey, setThemeKey, theme }: any) {
 
 function PhoneFrame({ children, theme }: any) {
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: theme.bg }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+        backgroundColor: theme.bg,
+        fontFamily:
+          "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji",
+        WebkitFontSmoothing: "antialiased",
+        MozOsxFontSmoothing: "grayscale",
+      }}
+    >
       <div
-        className="w-full max-w-[390px] aspect-[9/16] rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col"
-        style={{ backgroundColor: theme.bg, color: theme.text, border: `1px solid ${theme.border}` }}
+        style={{
+          width: "100%",
+          maxWidth: 390,
+          aspectRatio: "9 / 16",
+          borderRadius: 36,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          backgroundColor: theme.bg,
+          color: theme.text,
+          border: `1px solid ${theme.border}`,
+          boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
+          // CSS variables for consistent theming in primitives
+          // @ts-ignore
+          "--accent": theme.accent,
+          // @ts-ignore
+          "--bg": theme.bg,
+          // @ts-ignore
+          "--text": theme.text,
+          // @ts-ignore
+          "--surface": theme.surface,
+          // @ts-ignore
+          "--border": theme.border,
+          // @ts-ignore
+          "--muted": theme.muted,
+        } as React.CSSProperties}
       >
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">{children}</div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -387,40 +479,62 @@ function PhoneFrame({ children, theme }: any) {
 
 function Header({ title, subtitle, right, theme }: any) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {BG_LOGO_DATA_URI ? (
-            <img src={BG_LOGO_DATA_URI} alt="Logo" className="h-7 w-7 rounded-md" />
+            <img src={BG_LOGO_DATA_URI} alt="Logo" style={{ height: 28, width: 28, borderRadius: 10 }} />
           ) : (
             <div
-              className="h-7 w-7 rounded-md flex items-center justify-center font-bold text-xs"
-              style={{ backgroundColor: theme.accent, color: theme.bg }}
+              style={{
+                height: 28,
+                width: 28,
+                borderRadius: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 800,
+                fontSize: 12,
+                backgroundColor: theme.accent,
+                color: theme.bg,
+              }}
             >
               FS
             </div>
           )}
-          <Radar className="h-6 w-6" style={{ color: theme.accent }} />
-          <h1 className="text-xl font-semibold" style={{ color: theme.text }}>
-            {title}
-          </h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <Radar style={{ height: 20, width: 20, color: theme.accent, flex: "0 0 auto" }} />
+            <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.2, color: theme.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {title}
+            </div>
+          </div>
         </div>
         {subtitle ? (
-          <p className="text-sm" style={{ color: theme.muted }}>
+          <div style={{ fontSize: 13, lineHeight: 1.35, color: theme.muted }}>
             {subtitle}
-          </p>
+          </div>
         ) : null}
       </div>
-      <div className="flex flex-col items-end gap-2 min-w-[160px] max-w-[190px]">{right}</div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, minWidth: 170, maxWidth: 200 }}>
+        {right}
+      </div>
     </div>
   );
 }
 
-function SurfaceCard({ children, theme, className = "" }: any) {
+function SurfaceCard({ children, theme, className = "", style }: any) {
   return (
     <div
-      className={`rounded-2xl p-4 ${className}`}
-      style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}
+      className={className}
+      style={{
+        borderRadius: 18,
+        padding: 16,
+        backgroundColor: theme.surface,
+        border: `1px solid ${theme.border}`,
+        boxShadow: "0 10px 26px rgba(0,0,0,0.10)",
+        backdropFilter: "blur(8px)",
+        ...style,
+      }}
     >
       {children}
     </div>
@@ -535,6 +649,48 @@ function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport
 
 // Routes: "toolbox" | "beacon_home" | "beacon_app" | "deployment"
 
+function TileButton({ icon, title, subtitle, onClick, theme }: any) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: "100%",
+        borderRadius: 18,
+        padding: 16,
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 10px 26px rgba(0,0,0,0.10)",
+        textAlign: "left",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div
+          style={{
+            height: 44,
+            width: 44,
+            borderRadius: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "color-mix(in srgb, var(--accent) 16%, var(--surface))",
+            border: "1px solid color-mix(in srgb, var(--accent) 30%, var(--border))",
+          }}
+        >
+          {icon}
+        </div>
+        <div style={{ height: 8, width: 8, borderRadius: 999, background: "color-mix(in srgb, var(--accent) 75%, transparent)" }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2, color: theme.text }}>{title}</div>
+        <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.35 }}>{subtitle}</div>
+      </div>
+    </button>
+  );
+}
+
 function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettings, theme }: any) {
   return (
     <PhoneFrame theme={theme}>
@@ -543,40 +699,45 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
         subtitle="Virtual Toolbox"
         theme={theme}
         right={
-          <div className="flex flex-col items-end gap-2 w-full">
-            <div className="self-end">{headerBadge}</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%" }}>
+            <div style={{ alignSelf: "flex-end" }}>{headerBadge}</div>
             <Button
               variant="secondary"
               onClick={onOpenSettings}
               title="Settings"
-              className="w-full justify-start"
-              style={{ borderColor: theme.border }}
+              style={{ borderColor: theme.border, justifyContent: "flex-start" }}
             >
               <GearIcon theme={theme} />
-              <span className="ml-2">Settings</span>
+              <span style={{ marginLeft: 6 }}>Settings</span>
             </Button>
           </div>
         }
       />
 
-      <SurfaceCard theme={theme}>
-        <div className="space-y-2">
-          <div className="text-sm" style={{ color: theme.muted }}>
-            Choose a tool.
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <Button onClick={onOpenBeacon} className="justify-start">
-              <Radar className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Beacon Finder
-            </Button>
-            <Button onClick={onOpenDeployment} className="justify-start" variant="secondary" style={{ borderColor: theme.border }}>
-              <ScanLine className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Asset Deployment
-            </Button>
+      <SurfaceCard theme={theme} style={{ padding: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 13, color: theme.muted }}>Choose a tool.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <TileButton
+              theme={theme}
+              onClick={onOpenBeacon}
+              title="Beacon Finder"
+              subtitle="Find nearby assets and navigate by distance/trend."
+              icon={<Radar style={{ height: 20, width: 20, color: theme.accent }} />}
+            />
+            <TileButton
+              theme={theme}
+              onClick={onOpenDeployment}
+              title="Asset Deployment"
+              subtitle="Scan assets and attach them to tickets/status."
+              icon={<ScanLine style={{ height: 20, width: 20, color: theme.accent }} />}
+            />
           </div>
         </div>
       </SurfaceCard>
 
-      <div className="text-xs" style={{ color: theme.muted }}>
-        Prototype note: Beacon Finder simulates iBeacon signals. Asset Deployment simulates barcode scans.
+      <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.35 }}>
+        Prototype note: Beacon Finder simulates beacon ranging. Asset Deployment simulates barcode scans.
       </div>
     </PhoneFrame>
   );
@@ -584,6 +745,7 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
 
 // -----------------------------
 // Beacon Finder – Home (project select)
+ (project select)
 // -----------------------------
 
 function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, onEnter, onGoToolbox, onOpenSettings, theme }: any) {
