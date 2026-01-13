@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Cog as SettingsIcon,
   Home,
+  Moon,
   Package,
   QrCode,
   Radar,
@@ -14,35 +15,20 @@ import {
   Search,
   Server,
   Sun,
-  Moon,
   Wifi,
   X,
 } from "lucide-react";
 
-type ThemeKey = "light" | "dark";
+type ThemeKey = "dark" | "light";
 
 type Theme = {
+  name: string;
   accent: string;
   bg: string;
   text: string;
   surface: string;
   border: string;
   muted: string;
-};
-
-type Jobsite = { major: number; name: string };
-
-type Beacon = { uuid: string; major: number; minor: number };
-
-type Asset = {
-  id: string;
-  displayName: string;
-  assetType: string;
-  assetTag: string;
-  jobsiteMajor: number;
-  locationHint?: string;
-  beacon: Beacon;
-  simulate?: boolean;
 };
 
 type Route = "toolbox" | "beacon_home" | "beacon_app" | "deployment";
@@ -61,23 +47,48 @@ type Status = "In Stock" | "In Transit" | "In Use";
 
 type LocationOpt = "Birmingham Office" | "Atlanta Office" | "Jobsite Location";
 
-type Geo = { lat: number; lon: number };
+type Beacon = { uuid: string; major: number; minor: number };
 
-type Toast = { msg: string; ts: number };
+type BeaconAsset = {
+  id: string;
+  displayName: string;
+  assetType: string;
+  assetTag: string;
+  jobsiteMajor: number;
+  locationHint?: string;
+  beacon: Beacon;
+  simulate?: boolean;
+};
+
+type Jobsite = { major: number; name: string };
+
+type BeaconRow = {
+  asset: BeaconAsset;
+  beacon: Beacon;
+  key: string;
+  fresh: boolean;
+  age: number | null;
+  meters: number | null;
+  madMeters: number | null;
+  deltaMeters: number | null;
+  rssi: number | null;
+};
 
 const API_BASE = "http://localhost:8080";
 const ORG_UUID = "2F234454-CF6D-4A0F-ADF2-F4911BA9FFA6";
 
 const THEMES: Record<ThemeKey, Theme> = {
   dark: {
+    name: "Dark",
     accent: "#22fafa",
     bg: "#212121",
     text: "#ffffff",
-    surface: "rgba(255,255,255,0.06)",
+    surface: "rgba(255,255,255,0.07)",
     border: "rgba(255,255,255,0.14)",
     muted: "rgba(255,255,255,0.72)",
   },
   light: {
+    name: "Light",
     accent: "#2167ad",
     bg: "#ffffff",
     text: "#000000",
@@ -90,15 +101,11 @@ const THEMES: Record<ThemeKey, Theme> = {
 const STATUS_OPTIONS: Status[] = ["In Stock", "In Transit", "In Use"];
 const LOCATION_OPTIONS: LocationOpt[] = ["Birmingham Office", "Atlanta Office", "Jobsite Location"];
 
-const MOCK: {
-  jobsites: Jobsite[];
-  beaconAssets: Asset[];
-  ticketDB: Record<string, string[]>;
-} = {
+const MOCK = {
   jobsites: [
     { major: 23456, name: "23456 - BHM JS Tech II" },
     { major: 9567, name: "09567 - Microsoft Data Center" },
-  ],
+  ] as Jobsite[],
   beaconAssets: [
     {
       id: "a1",
@@ -147,84 +154,37 @@ const MOCK: {
       beacon: { uuid: ORG_UUID, major: 9567, minor: 603 },
       simulate: false,
     },
-  ],
+  ] as BeaconAsset[],
   ticketDB: {
     "INC-10001": ["C1234"],
     "SR-20498": [],
-  },
+  } as Record<string, string[]>,
 };
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error?: any }> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false, error: undefined };
-  }
-  static getDerivedStateFromError(error: any) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error: any, info: any) {
-    console.error("App crashed:", error, info);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: 16, fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" }}>
-          <div style={{ fontWeight: 950, marginBottom: 8 }}>Something went wrong</div>
-          <div style={{ fontSize: 12, opacity: 0.9, whiteSpace: "pre-wrap" }}>{String(this.state.error?.message || this.state.error || "Unknown error")}</div>
-        </div>
-      );
-    }
-    return this.props.children as any;
-  }
-}
-
-function ThemeVars({ theme, children }: { theme: Theme; children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        // @ts-ignore
-        "--accent": theme.accent,
-        // @ts-ignore
-        "--surface": theme.surface,
-        // @ts-ignore
-        "--border": theme.border,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function GlobalStyles({ themeKey, theme }: { themeKey: ThemeKey; theme: Theme }) {
-  const isDark = themeKey === "dark";
-  return (
-    <style>
-      {`
-        :root { color-scheme: ${isDark ? "dark" : "light"}; }
-        html, body { height: 100%; margin: 0; padding: 0; }
-        body { background: ${theme.bg}; color: ${theme.text}; overflow: hidden; }
-        * { box-sizing: border-box; }
-        button, input, select { font: inherit; }
-        select, input { color: ${theme.text}; }
-        select { background: transparent; }
-        option { color: #000; }
-        a { color: inherit; }
-      `}
-    </style>
-  );
-}
+const nowMs = () => Date.now();
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
 }
 
-function nowMs() {
-  return Date.now();
-}
-
 function ft(meters: number | null) {
   if (meters == null || Number.isNaN(meters) || meters < 0) return null;
   return meters * 3.28084;
+}
+
+function haversineMeters(a: { lat: number; lon: number } | null, b: { lat: number; lon: number } | null) {
+  if (!a || !b) return null;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLon / 2);
+  const h = s1 * s1 + Math.cos(lat1) * Math.cos(lat2) * s2 * s2;
+  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return R * c;
 }
 
 function formatAge(ms: number | null) {
@@ -263,57 +223,72 @@ function trendLabel(deltaMeters: number | null) {
   return { Icon: ArrowDownRight, label: "Getting farther" };
 }
 
-function toRad(d: number) {
-  return (d * Math.PI) / 180;
-}
-
-function haversineMeters(a: Geo | null, b: Geo | null) {
-  if (!a || !b) return null;
-  const R = 6371000;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const s1 = Math.sin(dLat / 2);
-  const s2 = Math.sin(dLon / 2);
-  const h = s1 * s1 + Math.cos(lat1) * Math.cos(lat2) * s2 * s2;
-  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-  return R * c;
-}
-
 function beaconKey(b: Beacon) {
   return `${b.uuid}|${b.major}|${b.minor}`;
 }
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error?: any }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: undefined };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: any, info: any) {
+    console.error("App crashed:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 16, fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" }}>
+          <div style={{ fontWeight: 900, marginBottom: 8 }}>Something went wrong</div>
+          <div style={{ fontSize: 12, opacity: 0.9, whiteSpace: "pre-wrap" }}>{String(this.state.error?.message || this.state.error || "Unknown error")}</div>
+        </div>
+      );
+    }
+    return this.props.children as any;
+  }
+}
+
+function GlobalStyles({ themeKey, theme }: { themeKey: ThemeKey; theme: Theme }) {
+  const isDark = themeKey === "dark";
+  return (
+    <style>
+      {`
+        :root { color-scheme: ${isDark ? "dark" : "light"}; }
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body { background: ${theme.bg}; color: ${theme.text}; overflow: auto; }
+        * { box-sizing: border-box; }
+        button, input, select { font: inherit; }
+        select { color: ${theme.text}; background: transparent; }
+        option { color: #000; }
+      `}
+    </style>
+  );
+}
+
 function Button({ children, onClick, disabled, variant = "default", style }: any) {
-  const bg =
-    variant === "default"
-      ? "color-mix(in srgb, var(--accent) 18%, var(--surface))"
-      : variant === "secondary"
-      ? "transparent"
-      : variant === "destructive"
-      ? "rgba(220,38,38,0.15)"
-      : "transparent";
-
-  const border = variant === "default" ? "color-mix(in srgb, var(--accent) 24%, var(--border))" : "var(--border)";
-
+  const baseBg = variant === "default" ? "color-mix(in srgb, var(--accent) 16%, var(--surface))" : "transparent";
+  const baseBorder = variant === "default" ? "color-mix(in srgb, var(--accent) 30%, var(--border))" : "var(--border)";
+  const baseColor = variant === "default" ? "var(--text)" : "var(--text)";
   return (
     <button
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       style={{
-        padding: "10px 12px",
-        borderRadius: 14,
-        border: `1px solid ${border}`,
-        background: bg,
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.55 : 1,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        fontWeight: 900,
-        minWidth: 0,
+        padding: "10px 12px",
+        borderRadius: 14,
+        border: `1px solid ${baseBorder}`,
+        background: baseBg,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+        color: baseColor,
+        maxWidth: "100%",
         whiteSpace: "nowrap",
         ...style,
       }}
@@ -333,9 +308,10 @@ function Input(props: any) {
         borderRadius: 14,
         border: "1px solid var(--border)",
         background: "transparent",
+        color: "var(--text)",
         outline: "none",
         minWidth: 0,
-        ...props?.style,
+        ...props.style,
       }}
     />
   );
@@ -344,19 +320,22 @@ function Input(props: any) {
 function Badge({ children, variant = "default", style }: any) {
   const bg =
     variant === "destructive"
-      ? "rgba(220,38,38,0.15)"
+      ? "rgba(220,38,38,0.16)"
       : variant === "secondary"
-      ? "rgba(127,127,127,0.14)"
-      : "rgba(127,127,127,0.18)";
+      ? "color-mix(in srgb, var(--text) 8%, transparent)"
+      : "color-mix(in srgb, var(--accent) 18%, transparent)";
   return (
     <span
       style={{
-        padding: "3px 8px",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 9px",
         borderRadius: 999,
         fontSize: 12,
         border: "1px solid var(--border)",
         background: bg,
-        fontWeight: 900,
+        color: "var(--text)",
         ...style,
       }}
     >
@@ -369,79 +348,69 @@ function Separator() {
   return <div style={{ height: 1, background: "var(--border)", margin: "12px 0" }} />;
 }
 
-function SurfaceCard({ children, theme, style }: { children: React.ReactNode; theme: Theme; style?: any }) {
+function Select({ value, onValueChange, children, style }: any) {
   return (
-    <div
+    <select
+      value={value}
+      onChange={(e) => onValueChange(e.target.value)}
       style={{
-        borderRadius: 22,
-        padding: 14,
-        background: theme.surface,
-        border: `1px solid ${theme.border}`,
+        width: "100%",
+        padding: "10px 12px",
+        borderRadius: 14,
+        border: "1px solid var(--border)",
+        background: "transparent",
+        color: "var(--text)",
+        outline: "none",
         minWidth: 0,
         ...style,
       }}
     >
       {children}
+    </select>
+  );
+}
+
+function SelectItem({ value, children }: any) {
+  return <option value={value}>{children}</option>;
+}
+
+function Tabs({ value, onValueChange, children }: any) {
+  return <div data-value={value}>{React.Children.map(children, (c: any) => React.cloneElement(c, { value, onValueChange }))}</div>;
+}
+
+function TabsList({ children, value, onValueChange }: any) {
+  return (
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {React.Children.map(children, (c: any) => React.cloneElement(c, { activeValue: value, onValueChange }))}
     </div>
   );
 }
 
-function Header({ title, subtitle, theme, leftGlyph }: any) {
+function TabsTrigger({ value, children, disabled, activeValue, onValueChange }: any) {
+  const active = activeValue === value;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-        {leftGlyph ? (
-          <div
-            style={{
-              height: 34,
-              width: 34,
-              borderRadius: 14,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "color-mix(in srgb, var(--accent) 14%, var(--surface))",
-              border: "1px solid color-mix(in srgb, var(--accent) 20%, var(--border))",
-              color: theme.accent,
-              flex: "0 0 auto",
-            }}
-          >
-            {leftGlyph}
-          </div>
-        ) : null}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: -0.4, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
-          {subtitle ? <div style={{ fontSize: 12, fontWeight: 700, color: theme.muted, marginTop: 2 }}>{subtitle}</div> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BottomNav({ left, center, right }: any) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "center" }}>
-      <div style={{ display: "flex", justifyContent: "flex-start", minWidth: 0 }}>{left}</div>
-      <div style={{ display: "flex", justifyContent: "center" }}>{center}</div>
-      <div style={{ display: "flex", justifyContent: "flex-end", minWidth: 0 }}>{right}</div>
-    </div>
+    <Button
+      variant={active ? "default" : "secondary"}
+      disabled={disabled}
+      onClick={() => onValueChange(value)}
+      style={{ padding: "10px 12px" }}
+    >
+      {children}
+    </Button>
   );
 }
 
 function PhoneFrame({ children, bottomBar, theme }: any) {
+  const cssVars: any = {
+    "--accent": theme.accent,
+    "--surface": theme.surface,
+    "--border": theme.border,
+    "--text": theme.text,
+    "--bg": theme.bg,
+  };
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-        backgroundColor: theme.bg,
-        fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
-        WebkitFontSmoothing: "antialiased",
-        MozOsxFontSmoothing: "grayscale",
-      }}
-    >
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: theme.bg, ...cssVars }}>
       <div
         style={{
           height: "min(calc(100vh - 32px), 760px)",
@@ -450,8 +419,7 @@ function PhoneFrame({ children, bottomBar, theme }: any) {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          backgroundColor: theme.bg,
-          color: theme.text,
+          background: theme.bg,
           border: `1px solid ${theme.border}`,
           boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
           minHeight: 0,
@@ -475,110 +443,121 @@ function PhoneFrame({ children, bottomBar, theme }: any) {
         >
           {children}
         </div>
-
-        {bottomBar ? <div style={{ padding: 12, borderTop: `1px solid ${theme.border}`, background: theme.bg }}>{bottomBar}</div> : null}
+        {bottomBar ? (
+          <div style={{ padding: 12, borderTop: `1px solid ${theme.border}`, background: theme.bg, flex: "0 0 auto" }}>{bottomBar}</div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function Select({ value, onValueChange, children, theme }: any) {
+function BottomNav({ left, center, right }: any) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onValueChange(e.target.value)}
-      style={{
-        width: "100%",
-        padding: "10px 12px",
-        borderRadius: 14,
-        border: "1px solid var(--border)",
-        background: "transparent",
-        outline: "none",
-        fontWeight: 900,
-        minWidth: 0,
-        color: theme?.text,
-      }}
-    >
-      {children}
-    </select>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 10, minWidth: 0 }}>
+      <div style={{ display: "flex", gap: 10, minWidth: 0 }}>{left}</div>
+      <div style={{ justifySelf: "center" }}>{center}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, minWidth: 0 }}>{right}</div>
+    </div>
   );
 }
 
-function SelectItem({ value, children }: any) {
-  return <option value={value}>{children}</option>;
-}
-
-function Tabs({ value, onValueChange, children }: any) {
-  return <div data-value={value}>{React.Children.map(children, (child: any) => React.cloneElement(child, { value, onValueChange }))}</div>;
-}
-
-function TabsList({ children }: any) {
-  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>{children}</div>;
-}
-
-function TabsTrigger({ tabValue, value, onValueChange, children, disabled }: any) {
-  const active = value === tabValue;
+function Header({ title, subtitle, theme, leftGlyph }: any) {
   return (
-    <Button
-      variant={active ? "default" : "secondary"}
-      onClick={() => (!disabled ? onValueChange(tabValue) : null)}
-      disabled={disabled}
-      style={{
-        width: "100%",
-        justifyContent: "center",
-        borderRadius: 16,
-      }}
-    >
-      {children}
-    </Button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        {leftGlyph ? <div style={{ flex: "0 0 auto" }}>{leftGlyph}</div> : null}
+        <div style={{ fontWeight: 980, fontSize: 22, letterSpacing: -0.5, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: theme.accent }}>{title}</div>
+      </div>
+      {subtitle ? <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.35 }}>{subtitle}</div> : null}
+    </div>
+  );
+}}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        {leftGlyph ? <div style={{ flex: "0 0 auto" }}>{leftGlyph}</div> : null}
+        <div style={{ fontWeight: 980, fontSize: 22, letterSpacing: -0.5, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+      </div>
+      {subtitle ? <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.35 }}>{subtitle}</div> : null}
+    </div>
   );
 }
 
-function AvatarIcon({ assetType, theme }: { assetType: string; theme: Theme }) {
-  const t = (assetType || "").toLowerCase();
-  const style = { height: 18, width: 18, color: theme.accent };
-  if (t.includes("access") || t.includes("ap")) return <Wifi {...style} />;
-  if (t.includes("switch") || t.includes("router")) return <Server {...style} />;
-  return <Radar {...style} />;
+function SurfaceCard({ children, theme, style }: any) {
+  return (
+    <div style={{ borderRadius: 22, padding: 14, background: theme.surface, border: `1px solid ${theme.border}`, minWidth: 0, maxWidth: "100%", ...style }}>
+      {children}
+    </div>
+  );
+}
+
+function AvatarIcon({ assetType, theme }: any) {
+  const t = String(assetType || "").toLowerCase();
+  const s = { height: 18, width: 18, color: theme.accent } as any;
+  if (t.includes("access") || t.includes("ap")) return <Wifi style={s} />;
+  if (t.includes("switch") || t.includes("router")) return <Server style={s} />;
+  return <Radar style={s} />;
+}
+
+function useBackendOrMock() {
+  const [mode, setMode] = useState<"checking" | "backend" | "mock">("checking");
+  const [jobsites, setJobsites] = useState<Jobsite[]>([]);
+  const [beaconAssets, setBeaconAssets] = useState<BeaconAsset[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/health`);
+        if (!r.ok) throw new Error("health not ok");
+        const j = await (await fetch(`${API_BASE}/api/jobsites`)).json();
+        const a = await (await fetch(`${API_BASE}/api/assets`)).json();
+        if (cancelled) return;
+        setJobsites((j?.jobsites || []) as Jobsite[]);
+        setBeaconAssets((a?.assets || []) as BeaconAsset[]);
+        setMode("backend");
+      } catch {
+        if (cancelled) return;
+        setJobsites(MOCK.jobsites);
+        setBeaconAssets(MOCK.beaconAssets);
+        setMode("mock");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { mode, jobsites, beaconAssets, setBeaconAssets };
 }
 
 function SettingsModal({ mode, importFile, setImportFile, importResult, onImport, onClose, theme, themeKey, setThemeKey }: any) {
+  const isDark = themeKey === "dark";
   return (
     <div
       role="dialog"
       aria-modal="true"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.30)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-        zIndex: 50,
-      }}
       onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.30)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 80 }}
     >
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
           maxWidth: 390,
           borderRadius: 22,
-          background: themeKey === "dark" ? "#2a2a2a" : "#f5f4f2",
+          background: isDark ? "#2a2a2a" : "#f5f4f2",
           border: `1px solid ${theme.border}`,
           padding: 16,
           boxShadow: "0 24px 60px rgba(0,0,0,0.25)",
           color: theme.text,
           overflow: "hidden",
-          minWidth: 0,
-          fontFamily: "ui-rounded, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+          fontFamily: "ui-sans-serif, system-ui, -apple-system, 'SF Pro Display', Segoe UI, Roboto, Helvetica, Arial",
+          maxWidth: "100%",
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <SettingsIcon style={{ height: 18, width: 18, color: theme.accent, flex: "0 0 auto" }} />
-            <div style={{ fontWeight: 950, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Settings</div>
+            <div style={{ fontWeight: 980, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Settings</div>
           </div>
           <Button variant="secondary" onClick={onClose} style={{ padding: "10px 12px" }}>
             Close
@@ -606,7 +585,7 @@ function SettingsModal({ mode, importFile, setImportFile, importResult, onImport
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontWeight: 950 }}>Import beacon assets (CSV)</div>
           <Input type="file" accept=".csv,text/csv" onChange={(e: any) => setImportFile(e.target.files?.[0] || null)} />
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button onClick={onImport} disabled={mode !== "backend"}>
               Import
             </Button>
@@ -662,43 +641,11 @@ function TileButton({ title, subtitle, icon, onClick, theme }: any) {
         {icon}
       </div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 950, fontSize: 16, color: theme.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+        <div style={{ fontWeight: 980, fontSize: 16, color: theme.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
         <div style={{ fontSize: 12, color: theme.muted, marginTop: 3, lineHeight: 1.35 }}>{subtitle}</div>
       </div>
     </button>
   );
-}
-
-function useBackendOrMock() {
-  const [mode, setMode] = useState<"checking" | "backend" | "mock">("checking");
-  const [jobsites, setJobsites] = useState<Jobsite[]>([]);
-  const [beaconAssets, setBeaconAssets] = useState<Asset[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`${API_BASE}/api/health`);
-        if (!r.ok) throw new Error("health not ok");
-        const j = await (await fetch(`${API_BASE}/api/jobsites`)).json();
-        const a = await (await fetch(`${API_BASE}/api/assets`)).json();
-        if (cancelled) return;
-        setJobsites(j.jobsites || []);
-        setBeaconAssets(a.assets || []);
-        setMode("backend");
-      } catch {
-        if (cancelled) return;
-        setJobsites(MOCK.jobsites);
-        setBeaconAssets(MOCK.beaconAssets);
-        setMode("mock");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { mode, jobsites, beaconAssets, setBeaconAssets };
 }
 
 function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettings, theme }: any) {
@@ -718,8 +665,7 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
         />
       }
     >
-      <Header title="Virtual Toolbox" subtitle="Select a tool." theme={theme} leftGlyph={null} />
-
+      <Header title="Virtual Toolbox" subtitle="Select a tool." theme={theme} leftGlyph={<img src="/brand-mark.png" alt="Logo" style={{ height: 22, width: 22, filter: theme.name === "Light" ? "none" : "invert(1)", color: theme.accent }} />}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0 }}>
         <TileButton title="Beacon Finder" subtitle="List nearby assets and open a Find view." icon={<Radar style={{ height: 22, width: 22 }} />} onClick={onOpenBeacon} theme={theme} />
         <TileButton title="Asset Deployment" subtitle="Scan barcodes and submit a deployment form." icon={<ScanLine style={{ height: 22, width: 22 }} />} onClick={onOpenDeployment} theme={theme} />
@@ -750,20 +696,18 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
         />
       }
     >
-      <Header title="Beacon Finder" subtitle="Choose a project." theme={theme} leftGlyph={<Radar style={{ height: 18, width: 18, color: theme.accent }} />} />
-
+      <Header title="Beacon Finder" subtitle="Choose a project." theme={theme} />
       <SurfaceCard theme={theme}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
           <div style={{ fontWeight: 950, fontSize: 13, color: theme.muted }}>Project</div>
-          <Select value={selectedMajor} onValueChange={setSelectedMajor} theme={theme}>
+          <Select value={selectedMajor} onValueChange={setSelectedMajor}>
             <SelectItem value="">Select location</SelectItem>
-            {jobsites.map((j: any) => (
+            {jobsites.map((j: Jobsite) => (
               <SelectItem key={j.major} value={String(j.major)}>
                 {j.name}
               </SelectItem>
             ))}
           </Select>
-
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button onClick={() => onEnter(selectedMajor)} disabled={!selectedMajor}>
               Enter
@@ -778,11 +722,11 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
   );
 }
 
-function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
+function NearbyList({ rows, jobsiteName, onFind, theme }: { rows: BeaconRow[]; jobsiteName: (m: number) => string; onFind: (r: BeaconRow) => void; theme: Theme }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
       {rows.length === 0 ? <div style={{ fontSize: 13, color: theme.muted }}>No assets match the current filter.</div> : null}
-      {rows.map((row: any) => {
+      {rows.map((row) => {
         const feet = ft(row.meters);
         const st = stabilityLabel(row.madMeters);
         const tr = trendLabel(row.deltaMeters);
@@ -792,24 +736,13 @@ function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
           <SurfaceCard key={row.key} theme={theme}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minWidth: 0 }}>
               <div style={{ display: "flex", gap: 12, minWidth: 0, flex: 1 }}>
-                <div
-                  style={{
-                    height: 38,
-                    width: 38,
-                    borderRadius: 14,
-                    border: `1px solid ${theme.border}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flex: "0 0 auto",
-                  }}
-                >
+                <div style={{ height: 38, width: 38, borderRadius: 14, border: `1px solid ${theme.border}`, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
                   <AvatarIcon assetType={row.asset.assetType} theme={theme} />
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
                   <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, minWidth: 0 }}>
-                    <div style={{ fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.asset.displayName}</div>
+                    <div style={{ fontWeight: 980, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.asset.displayName}</div>
                     <Badge variant={st.variant}>{st.label}</Badge>
                     {row.fresh ? <Badge>Live</Badge> : <Badge variant="secondary">Out of range</Badge>}
                   </div>
@@ -842,8 +775,7 @@ function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
 }
 
 function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTargetKey, theme, targetGeo }: any) {
-  const [geoPos, setGeoPos] = useState<Geo | null>(null);
-  const [geoAcc, setGeoAcc] = useState<number | null>(null);
+  const [geoPos, setGeoPos] = useState<{ lat: number; lon: number; acc: number } | null>(null);
   const [geoErr, setGeoErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -855,8 +787,7 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
 
     const watchId = navigator.geolocation.watchPosition(
       (p) => {
-        setGeoPos({ lat: p.coords.latitude, lon: p.coords.longitude });
-        setGeoAcc(p.coords.accuracy);
+        setGeoPos({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy });
         setGeoErr(null);
       },
       (e) => {
@@ -892,7 +823,7 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
     <SurfaceCard theme={theme}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minWidth: 0 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 950, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedRow.asset.displayName}</div>
+          <div style={{ fontWeight: 980, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedRow.asset.displayName}</div>
           <div style={{ fontSize: 12, color: theme.muted }}>Beacon: major {selectedRow.beacon.major} • minor {selectedRow.beacon.minor}</div>
         </div>
         <Button variant="secondary" onClick={onBack} style={{ padding: "10px 12px" }}>
@@ -912,16 +843,14 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
 
       <div style={{ marginTop: 12, borderRadius: 18, padding: 16, border: `1px solid ${theme.border}`, background: theme.surface }}>
         <div style={{ fontSize: 12, color: theme.muted, fontWeight: 950 }}>Estimated distance</div>
-        <div style={{ fontSize: 40, fontWeight: 950, letterSpacing: -0.6, marginTop: 6, color: theme.text }}>{isLive ? (selectedFeet == null ? "Unknown" : `${Math.round(selectedFeet)} ft`) : "Unknown"}</div>
-        <div style={{ fontSize: 12, color: theme.muted, marginTop: 6 }}>
-          {isLive && selectedState ? `RSSI: ${selectedState.lastRssi ?? "—"} dBm • Updated ${formatAge(nowMs() - selectedState.lastSeenMs)} ago` : "Asset is out of range or offline."}
-        </div>
+        <div style={{ fontSize: 40, fontWeight: 980, letterSpacing: -0.6, marginTop: 6, color: theme.text }}>{isLive ? (selectedFeet == null ? "Unknown" : `${Math.round(selectedFeet)} ft`) : "Unknown"}</div>
+        <div style={{ fontSize: 12, color: theme.muted, marginTop: 6 }}>{isLive && selectedState ? `RSSI: ${selectedState.lastRssi ?? "—"} dBm • Updated ${formatAge(nowMs() - selectedState.lastSeenMs)} ago` : "Asset is out of range or offline."}</div>
       </div>
 
       <div style={{ marginTop: 12, borderRadius: 18, padding: 16, border: `1px solid ${theme.border}`, background: theme.surface }}>
         <div style={{ fontSize: 12, color: theme.muted, fontWeight: 950 }}>GPS demo distance</div>
         <div style={{ marginTop: 6, fontSize: 14, fontWeight: 950, color: theme.text }}>{gpsFeet == null ? "Unknown" : `${Math.round(gpsFeet)} ft`}</div>
-        <div style={{ fontSize: 12, color: theme.muted, marginTop: 6 }}>{geoErr ? geoErr : geoPos ? `Accuracy ±${Math.round(geoAcc || 0)}m` : "Waiting for location…"}</div>
+        <div style={{ fontSize: 12, color: theme.muted, marginTop: 6 }}>{geoErr ? geoErr : geoPos ? `Accuracy ±${Math.round(geoPos.acc || 0)}m` : "Waiting for location…"}</div>
       </div>
 
       <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -943,7 +872,7 @@ function CommissionScreen({ jobsites, commMajor, setCommMajor, commMinor, setCom
     <SurfaceCard theme={theme}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
         <QrCode style={{ height: 18, width: 18, color: theme.accent }} />
-        <div style={{ fontWeight: 950, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Commission a beacon</div>
+        <div style={{ fontWeight: 980, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Commission a beacon</div>
       </div>
 
       <Separator />
@@ -951,8 +880,8 @@ function CommissionScreen({ jobsites, commMajor, setCommMajor, commMinor, setCom
       <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ fontSize: 12, fontWeight: 950, color: theme.muted }}>Project</div>
-          <Select value={String(commMajor)} onValueChange={setCommMajor} theme={theme}>
-            {jobsites.map((j: any) => (
+          <Select value={String(commMajor)} onValueChange={setCommMajor}>
+            {jobsites.map((j: Jobsite) => (
               <SelectItem key={j.major} value={String(j.major)}>
                 {j.name}
               </SelectItem>
@@ -1000,23 +929,29 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
           }
           center={headerBadge}
           right={
-            <Button variant={simRunning ? "default" : "secondary"} onClick={() => setSimRunning((v: boolean) => !v)} style={{ padding: "10px 12px" }}>
-              <RefreshCw style={{ height: 16, width: 16 }} />
-              {simRunning ? "Sim On" : "Sim Off"}
-            </Button>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <Button variant="secondary" onClick={onOpenSettings} style={{ padding: "10px 12px" }}>
+                <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} />
+                Settings
+              </Button>
+              <Button variant={simRunning ? "default" : "secondary"} onClick={() => setSimRunning((v: boolean) => !v)} style={{ padding: "10px 12px" }}>
+                <RefreshCw style={{ height: 16, width: 16 }} />
+                {simRunning ? "Sim On" : "Sim Off"}
+              </Button>
+            </div>
           }
         />
       }
     >
-      <Header title="Beacon Finder" subtitle="Nearby assets and Find view." theme={theme} leftGlyph={<Radar style={{ height: 18, width: 18, color: theme.accent }} />} />
+      <Header title="Beacon Finder" subtitle="Nearby assets and Find view." theme={theme} />
 
       <SurfaceCard theme={theme}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
-              <TabsTrigger tabValue="nearby">Nearby</TabsTrigger>
-              <TabsTrigger tabValue="commission">Commission</TabsTrigger>
-              <TabsTrigger tabValue="find" disabled={!selectedRow}>
+              <TabsTrigger value="nearby">Nearby</TabsTrigger>
+              <TabsTrigger value="commission">Commission</TabsTrigger>
+              <TabsTrigger value="find" disabled={!selectedRow}>
                 Find
               </TabsTrigger>
             </TabsList>
@@ -1028,9 +963,9 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
               <Input value={q} onChange={(e: any) => setQ(e.target.value)} placeholder="Search: tag, type, name, minor" style={{ paddingLeft: 38 }} />
             </div>
 
-            <Select value={String(jobsiteMajor)} onValueChange={setJobsiteMajor} theme={theme}>
+            <Select value={String(jobsiteMajor)} onValueChange={setJobsiteMajor}>
               <SelectItem value="all">All projects</SelectItem>
-              {jobsites.map((j: any) => (
+              {jobsites.map((j: Jobsite) => (
                 <SelectItem key={j.major} value={String(j.major)}>
                   {j.name}
                 </SelectItem>
@@ -1049,15 +984,106 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
           {tab === "commission" ? <CommissionScreen jobsites={jobsites} {...commissionProps} theme={theme} /> : null}
         </div>
       </SurfaceCard>
-
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button variant="secondary" onClick={onOpenSettings} style={{ padding: "10px 12px" }}>
-          <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} />
-          Settings
-        </Button>
-      </div>
     </PhoneFrame>
   );
+}
+
+function useBarcodeScanner(active: boolean, onDetected: (value: string) => void) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const detectorRef = useRef<any>(null);
+  const lastRef = useRef<{ v: string; ts: number }>({ v: "", ts: 0 });
+
+  const stop = useCallback(async () => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (streamRef.current) {
+      for (const t of streamRef.current.getTracks()) t.stop();
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      try {
+        videoRef.current.pause();
+      } catch {
+        // ignore
+      }
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!active) {
+      stop();
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const MediaDevices = navigator.mediaDevices;
+        if (!MediaDevices?.getUserMedia) return;
+
+        const stream = await MediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        if (cancelled) {
+          for (const t of stream.getTracks()) t.stop();
+          return;
+        }
+        streamRef.current = stream;
+
+        const v = videoRef.current;
+        if (!v) return;
+        v.srcObject = stream;
+        v.setAttribute("playsinline", "true");
+        await v.play();
+
+        const BD: any = (window as any).BarcodeDetector;
+        if (!BD) return;
+        detectorRef.current = new BD({ formats: ["qr_code", "code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "itf", "codabar", "data_matrix", "pdf417"] });
+
+        const tick = async () => {
+          if (cancelled) return;
+          const det = detectorRef.current;
+          const vid = videoRef.current;
+          if (!det || !vid) {
+            rafRef.current = requestAnimationFrame(tick);
+            return;
+          }
+          try {
+            const codes = await det.detect(vid);
+            if (codes && codes.length) {
+              const raw = String(codes[0]?.rawValue || "").trim();
+              if (raw) {
+                const now = Date.now();
+                const last = lastRef.current;
+                if (!(raw === last.v && now - last.ts < 900)) {
+                  lastRef.current = { v: raw, ts: now };
+                  onDetected(raw);
+                }
+              }
+            }
+          } catch {
+            // ignore
+          }
+          rafRef.current = requestAnimationFrame(tick);
+        };
+
+        rafRef.current = requestAnimationFrame(tick);
+      } catch {
+        // ignore
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, [active, onDetected, stop]);
+
+  return { videoRef, stop };
 }
 
 function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: any) {
@@ -1071,17 +1097,11 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const detectorRef = useRef<any>(null);
-  const lastScanRef = useRef<{ text: string; ts: number }>({ text: "", ts: 0 });
-
   const showToast = useCallback((msg: string) => {
-    setToast({ msg, ts: Date.now() });
+    setToast(msg);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToast(null), 1600) as any;
   }, []);
@@ -1101,6 +1121,19 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
     },
     [showToast]
   );
+
+  const { videoRef } = useBarcodeScanner(cameraOpen, (value) => {
+    setCameraError(null);
+    addCode(value);
+  });
+
+  useEffect(() => {
+    if (!cameraOpen) return;
+    const BD: any = (window as any).BarcodeDetector;
+    if (!BD) {
+      setCameraError("Barcode scanning is not supported in this browser.");
+    }
+  }, [cameraOpen]);
 
   const addManual = useCallback(() => {
     const v = scanInput.trim();
@@ -1183,107 +1216,6 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
     setLookupResult({ ok: true, message: `Ticket found. Assets attached: ${merged.length}.`, assets: merged });
   }, [ticket, scanned, status, location, mode]);
 
-  const stopCamera = useCallback(() => {
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    if (streamRef.current) {
-      for (const track of streamRef.current.getTracks()) {
-        try {
-          track.stop();
-        } catch {
-          // ignore
-        }
-      }
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      try {
-        videoRef.current.pause();
-      } catch {
-        // ignore
-      }
-      videoRef.current.srcObject = null;
-    }
-    detectorRef.current = null;
-  }, []);
-
-  const scanLoop = useCallback(async () => {
-    const video = videoRef.current;
-    const detector = detectorRef.current;
-    if (!video || !detector) return;
-
-    if (video.readyState >= 2) {
-      try {
-        const barcodes = await detector.detect(video);
-        if (Array.isArray(barcodes) && barcodes.length) {
-          const raw = String(barcodes[0]?.rawValue || "").trim();
-          if (raw) {
-            const now = Date.now();
-            const last = lastScanRef.current;
-            if (!(raw === last.text && now - last.ts < 1000)) {
-              lastScanRef.current = { text: raw, ts: now };
-              addCode(raw);
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    rafRef.current = requestAnimationFrame(scanLoop);
-  }, [addCode]);
-
-  useEffect(() => {
-    if (!cameraOpen) {
-      stopCamera();
-      return;
-    }
-
-    let cancelled = false;
-
-    (async () => {
-      setCameraError(null);
-
-      const AnyBarcodeDetector: any = (window as any).BarcodeDetector;
-      if (!AnyBarcodeDetector) {
-        setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
-        return;
-      }
-
-      try {
-        const detector = new AnyBarcodeDetector({ formats: ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"] });
-        detectorRef.current = detector;
-      } catch {
-        setCameraError("Barcode scanning is not available. Use manual entry.");
-        return;
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        if (cancelled) {
-          for (const track of stream.getTracks()) track.stop();
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        rafRef.current = requestAnimationFrame(scanLoop);
-      } catch (e: any) {
-        setCameraError(e?.message || "Unable to access camera.");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      stopCamera();
-    };
-  }, [cameraOpen, scanLoop, stopCamera]);
-
   const openCamera = useCallback(() => {
     setCameraError(null);
     setCameraOpen(true);
@@ -1315,13 +1247,13 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
           />
         }
       >
-        <Header title="Asset Deployment" subtitle="Scan barcodes and submit." theme={theme} leftGlyph={<ScanLine style={{ height: 18, width: 18, color: theme.accent }} />} />
+        <Header title="Asset Deployment" subtitle="Scan barcodes and submit." theme={theme} leftGlyph={<ScanLine style={{ height: 20, width: 20, color: theme.accent }} />} />
 
         <SurfaceCard theme={theme}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: "100%", minWidth: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0, maxWidth: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <ClipboardList style={{ height: 18, width: 18, color: theme.accent }} />
-              <div style={{ fontWeight: 950 }}>Ticket</div>
+              <div style={{ fontWeight: 980 }}>Ticket</div>
             </div>
 
             <Input value={ticket} onChange={(e: any) => setTicket(e.target.value)} placeholder="e.g., INC-10001" />
@@ -1338,11 +1270,11 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <ScanLine style={{ height: 18, width: 18, color: theme.accent }} />
-              <div style={{ fontWeight: 950 }}>Scan assets</div>
+              <div style={{ fontWeight: 980 }}>Scan assets</div>
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", width: "100%", minWidth: 0 }}>
-              <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+              <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: "100%" }}>
                 <Input value={scanInput} onChange={(e: any) => setScanInput(e.target.value)} placeholder="Barcode" />
               </div>
               <Button onClick={addManual} style={{ flex: "0 0 auto" }}>
@@ -1357,11 +1289,11 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
             {scanned.length ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 950 }}>Scanned ({scanned.length})</div>
+                <div style={{ fontSize: 13, fontWeight: 980 }}>Scanned ({scanned.length})</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
                   {scanned.map((code) => (
-                    <div key={code} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, borderRadius: 14, padding: "10px 12px", border: `1px solid ${theme.border}`, minWidth: 0 }}>
-                      <div style={{ fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{code}</div>
+                    <div key={code} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, borderRadius: 14, padding: "10px 12px", border: `1px solid ${theme.border}`, minWidth: 0, maxWidth: "100%" }}>
+                      <div style={{ fontWeight: 980, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{code}</div>
                       <Button variant="secondary" onClick={() => removeScan(code)} style={{ padding: "10px 12px", flex: "0 0 auto" }}>
                         Remove
                       </Button>
@@ -1378,7 +1310,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, minWidth: 0 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 950, color: theme.muted }}>Set status</div>
-                <Select value={status} onValueChange={setStatus as any} theme={theme}>
+                <Select value={status} onValueChange={setStatus as any}>
                   {STATUS_OPTIONS.map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}
@@ -1389,7 +1321,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 950, color: theme.muted }}>Set location</div>
-                <Select value={location} onValueChange={setLocation as any} theme={theme}>
+                <Select value={location} onValueChange={setLocation as any}>
                   {LOCATION_OPTIONS.map((l) => (
                     <SelectItem key={l} value={l}>
                       {l}
@@ -1410,62 +1342,23 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       </PhoneFrame>
 
       {cameraOpen ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 80,
-            background: "rgba(0,0,0,0.78)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 12,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 390,
-              borderRadius: 22,
-              overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: "#0b0b0b",
-              color: "#fff",
-              boxShadow: "0 28px 80px rgba(0,0,0,0.55)",
-              minWidth: 0,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
-              <div style={{ fontWeight: 950, fontSize: 14 }}>Scan Barcodes</div>
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", padding: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" }}>
+          <div style={{ width: "100%", maxWidth: 390, borderRadius: 22, overflow: "hidden", border: "1px solid rgba(255,255,255,0.18)", background: "#0b0b0b", color: "#fff", boxShadow: "0 28px 80px rgba(0,0,0,0.55)", maxWidth: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, borderBottom: "1px solid rgba(255,255,255,0.14)", gap: 10 }}>
+              <div style={{ fontWeight: 980, fontSize: 14 }}>Scan Barcodes</div>
               <button
                 onClick={closeCamera}
-                style={{
-                  height: 34,
-                  width: 34,
-                  borderRadius: 12,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "#fff",
-                  cursor: "pointer",
-                }}
+                style={{ height: 34, width: 34, borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer" }}
                 aria-label="Close camera"
               >
                 <X style={{ height: 18, width: 18 }} />
               </button>
             </div>
-
-            <div style={{ padding: 12 }}>
+            <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.14)", background: "#000" }}>
-                <video ref={videoRef} playsInline muted style={{ width: "100%", height: "auto", display: "block" }} />
+                <video ref={videoRef} style={{ width: "100%", display: "block" }} muted playsInline />
               </div>
-              {cameraError ? <div style={{ marginTop: 10, fontSize: 12, color: "#ffb4b4" }}>{cameraError}</div> : null}
-              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Keep scanning. Each scan will add to your list.</div>
+              {cameraError ? <div style={{ fontSize: 12, color: "#ffb4b4" }}>{cameraError}</div> : <div style={{ fontSize: 12, opacity: 0.8 }}>Keep the camera open to scan multiple assets.</div>}
             </div>
           </div>
         </div>
@@ -1481,23 +1374,27 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             padding: "10px 12px",
             borderRadius: 999,
             border: "1px solid rgba(0,0,0,0.18)",
-            background: theme.bg === "#212121" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.92)",
+            background: themeKeyBg(theme),
             color: theme.text,
             boxShadow: "0 18px 42px rgba(0,0,0,0.22)",
-            fontWeight: 950,
+            fontWeight: 980,
             fontSize: 13,
             maxWidth: "calc(100% - 16px)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            zIndex: 100,
+            zIndex: 120,
           }}
         >
-          {toast.msg}
+          {toast}
         </div>
       ) : null}
     </>
   );
+}
+
+function themeKeyBg(theme: Theme) {
+  return theme.bg === "#212121" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.92)";
 }
 
 export default function VirtualToolboxPrototype() {
@@ -1535,7 +1432,7 @@ export default function VirtualToolboxPrototype() {
   const [beaconTab, setBeaconTab] = useState("nearby");
   const [beaconJobsiteMajor, setBeaconJobsiteMajor] = useState<string>("all");
   const [beaconQ, setBeaconQ] = useState("");
-  const [selectedRow, setSelectedRow] = useState<any>(null);
+  const [selectedRow, setSelectedRow] = useState<BeaconRow | null>(null);
 
   const [ranged, setRanged] = useState<Map<string, RangeState>>(() => new Map());
 
@@ -1543,25 +1440,33 @@ export default function VirtualToolboxPrototype() {
   const [simTargetKey, setSimTargetKey] = useState<string | null>(null);
   const simStateRef = useRef<Record<string, { meters: number }>>({});
 
-  const [targetGeo, setTargetGeo] = useState<Record<string, Geo>>({});
+  const [targetGeo, setTargetGeo] = useState<Record<string, { lat: number; lon: number }>>({});
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      const next: Record<string, Geo> = {};
+    if (!beaconAssets.length) return;
+
+    let cancelled = false;
+
+    const fallback = () => {
+      const next: Record<string, { lat: number; lon: number }> = {};
       for (const a of beaconAssets) {
         const k = beaconKey(a.beacon);
-        if (!next[k]) next[k] = { lat: 33.5207 + (Math.random() - 0.5) * 0.002, lon: -86.8025 + (Math.random() - 0.5) * 0.002 };
+        if (next[k]) continue;
+        next[k] = { lat: 33.5207 + (Math.random() - 0.5) * 0.002, lon: -86.8025 + (Math.random() - 0.5) * 0.002 };
       }
       setTargetGeo(next);
+    };
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      fallback();
       return;
     }
 
-    let cancelled = false;
     navigator.geolocation.getCurrentPosition(
       (p) => {
         if (cancelled) return;
-        const base: Geo = { lat: p.coords.latitude, lon: p.coords.longitude };
-        const next: Record<string, Geo> = {};
+        const base = { lat: p.coords.latitude, lon: p.coords.longitude };
+        const next: Record<string, { lat: number; lon: number }> = {};
         for (const a of beaconAssets) {
           const k = beaconKey(a.beacon);
           if (next[k]) continue;
@@ -1576,12 +1481,8 @@ export default function VirtualToolboxPrototype() {
         setTargetGeo(next);
       },
       () => {
-        const next: Record<string, Geo> = {};
-        for (const a of beaconAssets) {
-          const k = beaconKey(a.beacon);
-          if (!next[k]) next[k] = { lat: 33.5207 + (Math.random() - 0.5) * 0.002, lon: -86.8025 + (Math.random() - 0.5) * 0.002 };
-        }
-        setTargetGeo(next);
+        if (cancelled) return;
+        fallback();
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 8000 }
     );
@@ -1612,7 +1513,7 @@ export default function VirtualToolboxPrototype() {
       const major = majorFilter ?? beaconJobsiteMajor;
       const url = major === "all" ? `${API_BASE}/api/assets` : `${API_BASE}/api/assets?major=${encodeURIComponent(String(major))}`;
       const a = await (await fetch(url)).json();
-      setBeaconAssets(a.assets || []);
+      setBeaconAssets((a?.assets || []) as BeaconAsset[]);
     },
     [mode, beaconJobsiteMajor, setBeaconAssets]
   );
@@ -1653,8 +1554,8 @@ export default function VirtualToolboxPrototype() {
   const filteredBeaconAssets = useMemo(() => {
     const needle = beaconQ.trim().toLowerCase();
     return beaconAssets
-      .filter((a: any) => (beaconJobsiteMajor === "all" ? true : a.jobsiteMajor === Number(beaconJobsiteMajor)))
-      .filter((a: any) => {
+      .filter((a) => (beaconJobsiteMajor === "all" ? true : a.jobsiteMajor === Number(beaconJobsiteMajor)))
+      .filter((a) => {
         if (!needle) return true;
         return (
           (a.displayName || "").toLowerCase().includes(needle) ||
@@ -1667,7 +1568,7 @@ export default function VirtualToolboxPrototype() {
 
   const beaconRows = useMemo(() => {
     return filteredBeaconAssets
-      .map((a: any) => {
+      .map((a) => {
         const k = beaconKey(a.beacon);
         const s = ranged.get(k);
         const age = s ? nowMs() - s.lastSeenMs : null;
@@ -1682,9 +1583,9 @@ export default function VirtualToolboxPrototype() {
           madMeters: s?.madMeters ?? null,
           deltaMeters: s?.deltaMeters ?? null,
           rssi: s?.lastRssi ?? null,
-        };
+        } as BeaconRow;
       })
-      .sort((x: any, y: any) => {
+      .sort((x, y) => {
         if (x.fresh !== y.fresh) return x.fresh ? -1 : 1;
         const dx = x.meters ?? 1e9;
         const dy = y.meters ?? 1e9;
@@ -1697,7 +1598,8 @@ export default function VirtualToolboxPrototype() {
     setRanged((prev) => {
       const next = new Map(prev);
       const curr: RangeState =
-        next.get(key) || {
+        next.get(key) ||
+        ({
           samples: [],
           lastSeenMs: 0,
           emaMeters: null,
@@ -1705,12 +1607,12 @@ export default function VirtualToolboxPrototype() {
           deltaMeters: null,
           lastEmaMeters: null,
           lastRssi: null,
-        };
+        } as RangeState);
 
       const samples = [...curr.samples, metersVal].slice(-18);
-      const med = median(samples) as number;
+      const med = median(samples);
       const alpha = 0.25;
-      const ema = curr.emaMeters == null ? med : alpha * med + (1 - alpha) * curr.emaMeters;
+      const ema = curr.emaMeters == null ? (med ?? metersVal) : alpha * (med ?? metersVal) + (1 - alpha) * curr.emaMeters;
       const m = mad(samples);
       const delta = curr.lastEmaMeters == null ? null : ema - curr.lastEmaMeters;
 
@@ -1735,8 +1637,8 @@ export default function VirtualToolboxPrototype() {
 
     const id = window.setInterval(() => {
       const audible = beaconAssets
-        .filter((a: any) => (beaconJobsiteMajor === "all" ? true : a.jobsiteMajor === Number(beaconJobsiteMajor)))
-        .filter((a: any) => a.simulate !== false)
+        .filter((a) => (beaconJobsiteMajor === "all" ? true : a.jobsiteMajor === Number(beaconJobsiteMajor)))
+        .filter((a) => a.simulate !== false)
         .slice(0, 12);
 
       for (const a of audible) {
@@ -1757,13 +1659,13 @@ export default function VirtualToolboxPrototype() {
 
   const jobsiteName = useCallback(
     (major: number) => {
-      const j = jobsites.find((x: any) => x.major === major);
-      return j ? j.name : "Project";
+      const j = jobsites.find((x) => x.major === major);
+      return j ? j.name : `Project ${major}`;
     },
     [jobsites]
   );
 
-  const onFind = useCallback((row: any) => {
+  const onFind = useCallback((row: BeaconRow) => {
     setSelectedRow(row);
     setBeaconTab("find");
     setSimTargetKey(row.key);
@@ -1786,7 +1688,7 @@ export default function VirtualToolboxPrototype() {
     if (!minor || !major) return;
 
     const displayName = `${commType} – ${commTag}`;
-    const beacon: Beacon = { uuid: ORG_UUID, major, minor };
+    const beacon = { uuid: ORG_UUID, major, minor };
 
     if (mode === "backend") {
       await fetch(`${API_BASE}/api/assets`, {
@@ -1799,7 +1701,7 @@ export default function VirtualToolboxPrototype() {
       return;
     }
 
-    setBeaconAssets((prev: any[]) => [{ id: `m${Math.random().toString(16).slice(2)}`, displayName, assetType: commType, assetTag: commTag, jobsiteMajor: major, locationHint: "", beacon }, ...prev]);
+    setBeaconAssets((prev) => [{ id: `m${Math.random().toString(16).slice(2)}`, displayName, assetType: commType, assetTag: commTag, jobsiteMajor: major, locationHint: "", beacon } as BeaconAsset, ...prev]);
     setBeaconTab("nearby");
   }, [commMinor, commMajor, commType, commTag, mode, refreshBeaconAssets, setBeaconAssets]);
 
@@ -1821,80 +1723,68 @@ export default function VirtualToolboxPrototype() {
 
   return (
     <ErrorBoundary>
-      <ThemeVars theme={theme}>
-        <GlobalStyles themeKey={themeKey} theme={theme} />
+      <GlobalStyles themeKey={themeKey} theme={theme} />
 
-        {route === "toolbox" ? (
-          <>
-            <ToolboxHome headerBadge={headerBadge} onOpenBeacon={openBeacon} onOpenDeployment={openDeployment} onOpenSettings={() => setSettingsOpen(true)} theme={theme} />
-            {settingsPanel}
-          </>
-        ) : null}
+      {route === "toolbox" ? (
+        <>
+          <ToolboxHome headerBadge={headerBadge} onOpenBeacon={openBeacon} onOpenDeployment={openDeployment} onOpenSettings={() => setSettingsOpen(true)} theme={theme} />
+          {settingsPanel}
+        </>
+      ) : null}
 
-        {route === "beacon_home" ? (
-          <>
-            <BeaconHome
-              headerBadge={headerBadge}
-              jobsites={jobsites}
-              selectedMajor={beaconHomeSelectedMajor}
-              setSelectedMajor={setBeaconHomeSelectedMajor}
-              onEnter={enterBeaconProject}
-              onGoToolbox={goToolbox}
-              onOpenSettings={() => setSettingsOpen(true)}
-              theme={theme}
-            />
-            {settingsPanel}
-          </>
-        ) : null}
+      {route === "beacon_home" ? (
+        <>
+          <BeaconHome
+            headerBadge={headerBadge}
+            jobsites={jobsites}
+            selectedMajor={beaconHomeSelectedMajor}
+            setSelectedMajor={setBeaconHomeSelectedMajor}
+            onEnter={enterBeaconProject}
+            onGoToolbox={goToolbox}
+            onOpenSettings={() => setSettingsOpen(true)}
+            theme={theme}
+          />
+          {settingsPanel}
+        </>
+      ) : null}
 
-        {route === "deployment" ? (
-          <>
-            <AssetDeployment headerBadge={headerBadge} onHome={goToolbox} onOpenSettings={() => setSettingsOpen(true)} mode={mode} theme={theme} />
-            {settingsPanel}
-          </>
-        ) : null}
+      {route === "deployment" ? (
+        <>
+          <AssetDeployment headerBadge={headerBadge} onHome={goToolbox} onOpenSettings={() => setSettingsOpen(true)} mode={mode} theme={theme} />
+          {settingsPanel}
+        </>
+      ) : null}
 
-        {route === "beacon_app" ? (
-          <>
-            <BeaconApp
-              headerBadge={headerBadge}
-              jobsites={jobsites}
-              jobsiteMajor={beaconJobsiteMajor}
-              setJobsiteMajor={setBeaconJobsiteMajor}
-              q={beaconQ}
-              setQ={setBeaconQ}
-              tab={beaconTab}
-              setTab={setBeaconTab}
-              simRunning={simRunning}
-              setSimRunning={setSimRunning}
-              onHome={goToolbox}
-              onOpenSettings={() => setSettingsOpen(true)}
-              rows={beaconRows}
-              onFind={onFind}
-              selectedRow={selectedRow}
-              selectedState={selectedState}
-              onBackFromFind={onBackFromFind}
-              simTargetKey={simTargetKey}
-              setSimTargetKey={setSimTargetKey}
-              commissionProps={{
-                commMajor,
-                setCommMajor,
-                commMinor,
-                setCommMinor,
-                commType,
-                setCommType,
-                commTag,
-                setCommTag,
-                onSave: commission,
-              }}
-              jobsiteName={jobsiteName}
-              theme={theme}
-              targetGeo={selectedRow ? targetGeo[selectedRow.key] : null}
-            />
-            {settingsPanel}
-          </>
-        ) : null}
-      </ThemeVars>
+      {route === "beacon_app" ? (
+        <>
+          <BeaconApp
+            headerBadge={headerBadge}
+            jobsites={jobsites}
+            jobsiteMajor={beaconJobsiteMajor}
+            setJobsiteMajor={setBeaconJobsiteMajor}
+            q={beaconQ}
+            setQ={setBeaconQ}
+            tab={beaconTab}
+            setTab={setBeaconTab}
+            simRunning={simRunning}
+            setSimRunning={setSimRunning}
+            onHome={goToolbox}
+            onOpenSettings={() => setSettingsOpen(true)}
+            rows={beaconRows}
+            onFind={onFind}
+            selectedRow={selectedRow}
+            selectedState={selectedState}
+            onBackFromFind={onBackFromFind}
+            simTargetKey={simTargetKey}
+            setSimTargetKey={setSimTargetKey}
+            commissionProps={{ commMajor, setCommMajor, commMinor, setCommMinor, commType, setCommType, commTag, setCommTag, onSave: commission }}
+            jobsiteName={jobsiteName}
+            theme={theme}
+            targetGeo={selectedRow ? targetGeo[selectedRow.key] : null}
+          />
+          {settingsPanel}
+        </>
+      ) : null}
     </ErrorBoundary>
   );
 }
