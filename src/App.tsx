@@ -828,7 +828,7 @@ function CommissionScreen({ jobsites, commMajor, setCommMajor, commMinor, setCom
             <SelectContent>
               {jobsites.map((j: any) => (
                 <SelectItem key={j.major} value={String(j.major)}>
-                  {j.name} (Major {j.major})
+                  {j.name}
                 </SelectItem>
               ))}
             </SelectContent>
