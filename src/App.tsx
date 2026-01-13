@@ -1,21 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpRight,
-  ClipboardList,
-  Home,
-  MapPin,
-  Moon,
-  Package,
-  QrCode,
-  Radar,
-  RefreshCw,
-  ScanLine,
-  Search,
-  Server,
-  Sun,
-  Wifi,
+import {$1  Settings as SettingsIcon,
 } from "lucide-react";
 
 // -------------------------------------------------
@@ -556,22 +540,6 @@ function AvatarIcon({ assetType, theme }: any) {
   return <MapPin className="h-5 w-5" style={style} />;
 }
 
-function GearIcon({ theme }: any) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke={theme.accent}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-      <path d="M19.4 15a7.9 7.9 0 0 0 .1-1 7.9 7.9 0 0 0-.1-1l2-1.5-2-3.5-2.4.8a7.6 7.6 0 0 0-1.7-1L15 3h-6l-.9 2.8a7.6 7.6 0 0 0-1.7 1L4 6l-2 3.5L4 11a7.9 7.9 0 0 0-.1 1 7.9 7.9 0 0 0 .1 1l-2 1.5L4 20l2.4-.8a7.6 7.6 0 0 0 1.7 1L9 23h6l.9-2.8a7.6 7.6 0 0 0 1.7-1L20 20l2-3.5-2.6-1.5Z" />
-    </svg>
-  );
-}
 
 // -----------------------------
 // Backend-or-mock hook
@@ -613,7 +581,7 @@ function useBackendOrMock() {
 // Settings
 // -----------------------------
 
-function SettingsPanel($1) {
+function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport, onClose, theme, themeKey, setThemeKey }: any) {
   const panelBg = themeKey === "dark" ? "#2a2a2a" : "#f8f7f4";
   const panelBorder = themeKey === "dark" ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.12)";
   return (
@@ -762,7 +730,7 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
                 title="Settings"
                 style={{ borderColor: theme.border, justifyContent: "flex-start" }}
               >
-                <GearIcon theme={theme} />
+                <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} />
                 <span style={{ marginLeft: 6 }}>Settings</span>
               </Button>
             </div>
@@ -818,7 +786,7 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
                 <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
               </Button>
               <Button variant="secondary" onClick={onOpenSettings} title="Settings" className="w-full justify-start" style={{ borderColor: theme.border }}>
-                <GearIcon theme={theme} />
+                <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} />
                 <span className="ml-2">Settings</span>
               </Button>
             </div>
@@ -1189,7 +1157,7 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
                 className="w-full justify-start"
                 style={{ borderColor: theme.border }}
               >
-                <GearIcon theme={theme} />
+                <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} />
                 <span className="ml-2">Settings</span>
               </Button>
               <Button
@@ -1511,7 +1479,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                 className="w-full justify-start"
                 style={{ borderColor: theme.border }}
               >
-                <GearIcon theme={theme} />
+                <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} />
                 <span className="ml-2">Settings</span>
               </Button>
             </div>
