@@ -845,7 +845,7 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
           center={headerBadge}
           right={
             <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <Settings style={{ height: 16, width: 16, color: theme.accent }} /> Settings
+              <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} /> Settings
             </Button>
           }
         />
@@ -899,7 +899,7 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
           center={headerBadge}
           right={
             <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <Settings style={{ height: 16, width: 16, color: theme.accent }} /> Settings
+              <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} /> Settings
             </Button>
           }
         />
@@ -1246,7 +1246,7 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
           }
           right={
             <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <Settings style={{ height: 16, width: 16, color: theme.accent }} /> Settings
+              <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} /> Settings
             </Button>
           }
         />
@@ -1513,7 +1513,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             center={headerBadge}
             right={
               <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-                <Settings style={{ height: 16, width: 16, color: theme.accent }} /> Settings
+                <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} /> Settings
               </Button>
             }
           />
