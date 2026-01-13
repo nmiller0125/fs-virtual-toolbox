@@ -1484,7 +1484,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
           right={
             <div className="flex flex-col items-end gap-2 w-full">
               <div className="self-end">{headerBadge}</div>
-              <Button variant="secondary" on/pClick={onHome} className="w-full justify-start" style={{ borderColor: theme.border }}>
+              <Button variant="secondary" onClick={onHome} className="w-full justify-start" style={{ borderColor: theme.border }}>
                 <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
               </Button>
               <Button
