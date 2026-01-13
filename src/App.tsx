@@ -711,7 +711,14 @@ function TileButton({ icon, title, subtitle, onClick, theme }: any) {
         >
           {icon}
         </div>
-        <div style={{ height: 8, width: 8, borderRadius: 999, background: "color-mix(in srgb, var(--accent) 75%, transparent)" }} />
+        <div
+          style={{
+            height: 8,
+            width: 8,
+            borderRadius: 999,
+            background: "color-mix(in srgb, var(--accent) 75%, transparent)",
+          }}
+        />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2, color: theme.text }}>{title}</div>
@@ -721,7 +728,56 @@ function TileButton({ icon, title, subtitle, onClick, theme }: any) {
   );
 }
 
-$1
+function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettings, theme }: any) {
+  return (
+    <>
+      <PhoneFrame theme={theme}>
+        <Header
+          title="Field Services"
+          subtitle="Virtual Toolbox"
+          theme={theme}
+          right={
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%" }}>
+              <div style={{ alignSelf: "flex-end" }}>{headerBadge}</div>
+              <Button
+                variant="secondary"
+                onClick={onOpenSettings}
+                title="Settings"
+                style={{ borderColor: theme.border, justifyContent: "flex-start" }}
+              >
+                <GearIcon theme={theme} />
+                <span style={{ marginLeft: 6 }}>Settings</span>
+              </Button>
+            </div>
+          }
+        />
+
+        <SurfaceCard theme={theme} style={{ padding: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 13, color: theme.muted }}>Choose a tool.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <TileButton
+                theme={theme}
+                onClick={onOpenBeacon}
+                title="Beacon Finder"
+                subtitle="Find nearby assets and navigate by distance/trend."
+                icon={<Radar style={{ height: 20, width: 20, color: theme.accent }} />}
+              />
+              <TileButton
+                theme={theme}
+                onClick={onOpenDeployment}
+                title="Asset Deployment"
+                subtitle="Scan assets and attach them to tickets/status."
+                icon={<ScanLine style={{ height: 20, width: 20, color: theme.accent }} />}
+              />
+            </div>
+          </div>
+        </SurfaceCard>
+
+        <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.35 }}>
+          Prototype note: Beacon Finder simulates beacon ranging. Asset Deployment simulates barcode scans.
+        </div>
+      </PhoneFrame>
     </>
   );
 }
@@ -734,62 +790,57 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
   return (
     <>
       <PhoneFrame theme={theme}>
-      <Header
-        title="Beacon Finder"
-        subtitle="Select a jobsite/project to find nearby assets."
-        theme={theme}
-        right={
-          <div className="flex flex-col items-end gap-2 w-full">
-            <div className="self-end">{headerBadge}</div>
-            <Button variant="secondary" onClick={onGoToolbox} className="w-full justify-start" style={{ borderColor: theme.border }}>
-              <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={onOpenSettings}
-              title="Settings"
-              className="w-full justify-start"
-              style={{ borderColor: theme.border }}
-            >
-              <GearIcon theme={theme} />
-              <span className="ml-2">Settings</span>
-            </Button>
-          </div>
-        }
-      />
+        <Header
+          title="Beacon Finder"
+          subtitle="Select a jobsite/project to find nearby assets."
+          theme={theme}
+          right={
+            <div className="flex flex-col items-end gap-2 w-full">
+              <div className="self-end">{headerBadge}</div>
+              <Button variant="secondary" onClick={onGoToolbox} className="w-full justify-start" style={{ borderColor: theme.border }}>
+                <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
+              </Button>
+              <Button variant="secondary" onClick={onOpenSettings} title="Settings" className="w-full justify-start" style={{ borderColor: theme.border }}>
+                <GearIcon theme={theme} />
+                <span className="ml-2">Settings</span>
+              </Button>
+            </div>
+          }
+        />
 
-      <SurfaceCard theme={theme}>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Project / Jobsite</div>
-            <Select value={selectedMajor} onValueChange={setSelectedMajor}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a jobsite" />
-              </SelectTrigger>
-              <SelectContent>
-                {jobsites.map((j: any) => (
-                  <SelectItem key={j.major} value={String(j.major)}>
-                    {j.name} (Major {j.major})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="text-xs" style={{ color: theme.muted }}>
-              You can import assets in Settings before entering a project.
+        <SurfaceCard theme={theme}>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Project / Jobsite</div>
+              <Select value={selectedMajor} onValueChange={setSelectedMajor}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a jobsite" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobsites.map((j: any) => (
+                    <SelectItem key={j.major} value={String(j.major)}>
+                      {j.name} (Major {j.major})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="text-xs" style={{ color: theme.muted }}>
+                You can import assets in Settings before entering a project.
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => onEnter(selectedMajor)} disabled={!selectedMajor}>
+                Enter project
+              </Button>
+              <Button variant="secondary" onClick={() => onEnter("all")} style={{ borderColor: theme.border }}>
+                View all
+              </Button>
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => onEnter(selectedMajor)} disabled={!selectedMajor}>
-              Enter project
-            </Button>
-            <Button variant="secondary" onClick={() => onEnter("all")} style={{ borderColor: theme.border }}>
-              View all
-            </Button>
-          </div>
-        </div>
-      </SurfaceCard>
-    </PhoneFrame>
+        </SurfaceCard>
+      </PhoneFrame>
+    </>
   );
 }
 
