@@ -1249,6 +1249,7 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
         </div>
       </div>
     </PhoneFrame>
+    </>
   );
 }
 
