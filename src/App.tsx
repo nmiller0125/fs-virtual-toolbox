@@ -1,0 +1,1536 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  ClipboardList,
+  Home,
+  MapPin,
+  Moon,
+  Package,
+  QrCode,
+  Radar,
+  RefreshCw,
+  ScanLine,
+  Search,
+  Server,
+  Sun,
+  Wifi,
+} from "lucide-react";
+
+/**
+ * Field Services – Virtual Toolbox (Web Prototype)
+ *
+ * Modules:
+ * - Beacon Finder (iBeacon concept): Nearby / Find / Commission
+ * - Asset Deployment (barcode scan concept): deploy assets to tickets/locations
+ *
+ * Notes:
+ * - This is a web prototype for UI review only.
+ * - Mobile implementation would use CoreLocation + CoreMotion (Beacon Finder) and AVFoundation camera scanning (Barcode).
+ */
+
+// -----------------------------
+// Config + Mock Data
+// -----------------------------
+
+const API_BASE = "http://localhost:8080";
+const ORG_UUID = "2F234454-CF6D-4A0F-ADF2-F4911BA9FFA6";
+
+const THEMES = {
+  dark: {
+    name: "Dark",
+    accent: "#22fafa",
+    bg: "#212121",
+    text: "#ffffff",
+    surface: "rgba(255,255,255,0.06)",
+    border: "rgba(255,255,255,0.14)",
+    muted: "rgba(255,255,255,0.72)",
+  },
+  light: {
+    name: "Light",
+    accent: "#2167ad",
+    bg: "#ffffff",
+    text: "#000000",
+    surface: "rgba(0,0,0,0.04)",
+    border: "rgba(0,0,0,0.12)",
+    muted: "rgba(0,0,0,0.62)",
+  },
+};
+
+// Optional logo data URI. Leave empty to use fallback "FS" mark.
+const BG_LOGO_DATA_URI = "";
+
+const MOCK = {
+  jobsites: [
+    { major: 1201, name: "Nashville – Project A" },
+    { major: 1202, name: "Birmingham – Project B" },
+  ],
+  beaconAssets: [
+    {
+      id: "a1",
+      displayName: "Access Point – C1234",
+      assetType: "Access Point",
+      assetTag: "C1234",
+      jobsiteMajor: 1201,
+      locationHint: "IDF-2, Rack A",
+      beacon: { uuid: ORG_UUID, major: 1201, minor: 501 },
+    },
+    {
+      id: "a2",
+      displayName: "Switch – C2388",
+      assetType: "Switch",
+      assetTag: "C2388",
+      jobsiteMajor: 1201,
+      locationHint: "MDF, Rack B",
+      beacon: { uuid: ORG_UUID, major: 1201, minor: 502 },
+    },
+    {
+      id: "a3",
+      displayName: "Cradlepoint – C9910",
+      assetType: "Cradlepoint",
+      assetTag: "C9910",
+      jobsiteMajor: 1202,
+      locationHint: "Trailer, Network Cabinet",
+      beacon: { uuid: ORG_UUID, major: 1202, minor: 601 },
+    },
+    // Intentionally out-of-range demo rows
+    {
+      id: "a4",
+      displayName: "Access Point – C4501",
+      assetType: "Access Point",
+      assetTag: "C4501",
+      jobsiteMajor: 1202,
+      locationHint: "IDF-1, Rack C",
+      beacon: { uuid: ORG_UUID, major: 1202, minor: 602 },
+      simulate: false,
+    },
+    {
+      id: "a5",
+      displayName: "Switch – C4502",
+      assetType: "Switch",
+      assetTag: "C4502",
+      jobsiteMajor: 1202,
+      locationHint: "MDF, Rack D",
+      beacon: { uuid: ORG_UUID, major: 1202, minor: 603 },
+      simulate: false,
+    },
+  ],
+  ticketDB: {
+    // Ticket number -> attached assets (barcode strings)
+    "INC-10001": ["C1234"],
+    "SR-20498": [],
+  },
+};
+
+// -----------------------------
+// Helpers
+// -----------------------------
+
+const nowMs = () => Date.now();
+
+function clamp(n, lo, hi) {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+function ft(meters) {
+  if (meters == null || Number.isNaN(meters) || meters < 0) return null;
+  return meters * 3.28084;
+}
+
+function haversineMeters(a, b) {
+  if (!a || !b) return null;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371000; // meters
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLon / 2);
+  const h = s1 * s1 + Math.cos(lat1) * Math.cos(lat2) * s2 * s2;
+  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return R * c;
+}
+
+function formatAge(ms) {
+  if (ms == null || !Number.isFinite(ms)) return "—";
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 120) return `${s}s`;
+  return `${Math.round(s / 60)}m`;
+}
+
+function median(arr) {
+  if (!arr.length) return null;
+  const a = [...arr].sort((x, y) => x - y);
+  const mid = Math.floor(a.length / 2);
+  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+}
+
+function mad(arr) {
+  if (arr.length < 4) return null;
+  const med = median(arr) as number;
+  const dev = arr.map((x) => Math.abs(x - med));
+  return median(dev);
+}
+
+function stabilityLabel(madMeters) {
+  if (madMeters == null) return { label: "Warming up", variant: "secondary" as const };
+  if (madMeters < 0.25) return { label: "Stable", variant: "default" as const };
+  if (madMeters < 0.6) return { label: "Moderate", variant: "secondary" as const };
+  return { label: "Unstable", variant: "destructive" as const };
+}
+
+function trendLabel(deltaMeters) {
+  if (deltaMeters == null) return { Icon: ArrowRight, label: "Collecting" };
+  if (Math.abs(deltaMeters) < 0.2) return { Icon: ArrowRight, label: "Flat" };
+  if (deltaMeters < 0) return { Icon: ArrowUpRight, label: "Getting closer" };
+  return { Icon: ArrowDownRight, label: "Getting farther" };
+}
+
+function beaconKey(b) {
+  return `${b.uuid}|${b.major}|${b.minor}`;
+}
+
+// -----------------------------
+// UI Primitives
+// -----------------------------
+
+function ThemeToggle({ themeKey, setThemeKey, theme }: any) {
+  const isDark = themeKey === "dark";
+  return (
+    <Button
+      variant="secondary"
+      onClick={() => setThemeKey(isDark ? "light" : "dark")}
+      className="w-full justify-start"
+      style={{ borderColor: theme.border }}
+    >
+      {isDark ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+      {isDark ? "Light theme" : "Dark theme"}
+    </Button>
+  );
+}
+
+function PhoneFrame({ children, theme }: any) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: theme.bg }}>
+      <div
+        className="w-full max-w-[390px] aspect-[9/16] rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col"
+        style={{ backgroundColor: theme.bg, color: theme.text, border: `1px solid ${theme.border}` }}
+      >
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Header({ title, subtitle, right, theme }: any) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          {BG_LOGO_DATA_URI ? (
+            <img src={BG_LOGO_DATA_URI} alt="Logo" className="h-7 w-7 rounded-md" />
+          ) : (
+            <div
+              className="h-7 w-7 rounded-md flex items-center justify-center font-bold text-xs"
+              style={{ backgroundColor: theme.accent, color: theme.bg }}
+            >
+              FS
+            </div>
+          )}
+          <Radar className="h-6 w-6" style={{ color: theme.accent }} />
+          <h1 className="text-xl font-semibold" style={{ color: theme.text }}>
+            {title}
+          </h1>
+        </div>
+        {subtitle ? (
+          <p className="text-sm" style={{ color: theme.muted }}>
+            {subtitle}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex flex-col items-end gap-2 min-w-[160px] max-w-[190px]">{right}</div>
+    </div>
+  );
+}
+
+function SurfaceCard({ children, theme, className = "" }: any) {
+  return (
+    <div
+      className={`rounded-2xl p-4 ${className}`}
+      style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function AvatarIcon({ assetType, theme }: any) {
+  const t = (assetType || "").toLowerCase();
+  const style = { color: theme.accent };
+  if (t.includes("access") || t.includes("ap")) return <Wifi className="h-5 w-5" style={style} />;
+  if (t.includes("switch") || t.includes("router")) return <Server className="h-5 w-5" style={style} />;
+  return <MapPin className="h-5 w-5" style={style} />;
+}
+
+function GearIcon({ theme }: any) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke={theme.accent}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+      <path d="M19.4 15a7.9 7.9 0 0 0 .1-1 7.9 7.9 0 0 0-.1-1l2-1.5-2-3.5-2.4.8a7.6 7.6 0 0 0-1.7-1L15 3h-6l-.9 2.8a7.6 7.6 0 0 0-1.7 1L4 6l-2 3.5L4 11a7.9 7.9 0 0 0-.1 1 7.9 7.9 0 0 0 .1 1l-2 1.5L4 20l2.4-.8a7.6 7.6 0 0 0 1.7 1L9 23h6l.9-2.8a7.6 7.6 0 0 0 1.7-1L20 20l2-3.5-2.6-1.5Z" />
+    </svg>
+  );
+}
+
+// -----------------------------
+// Backend-or-mock hook
+// -----------------------------
+
+function useBackendOrMock() {
+  const [mode, setMode] = useState("checking");
+  const [jobsites, setJobsites] = useState<any[]>([]);
+  const [beaconAssets, setBeaconAssets] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/health`);
+        if (!r.ok) throw new Error("health not ok");
+        const j = await (await fetch(`${API_BASE}/api/jobsites`)).json();
+        const a = await (await fetch(`${API_BASE}/api/assets`)).json();
+        if (cancelled) return;
+        setJobsites(j.jobsites || []);
+        setBeaconAssets(a.assets || []);
+        setMode("backend");
+      } catch {
+        if (cancelled) return;
+        setJobsites(MOCK.jobsites);
+        setBeaconAssets(MOCK.beaconAssets);
+        setMode("mock");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { mode, jobsites, beaconAssets, setBeaconAssets };
+}
+
+// -----------------------------
+// Settings
+// -----------------------------
+
+function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport, onClose, theme, themeKey, setThemeKey }: any) {
+  return (
+    <SurfaceCard theme={theme}>
+      <div className="flex items-center justify-between">
+        <div className="text-lg font-semibold">Settings</div>
+        <Button variant="secondary" onClick={onClose} style={{ borderColor: theme.border }}>
+          Close
+        </Button>
+      </div>
+
+      <div className="my-4" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+      <div className="space-y-2">
+        <div className="font-semibold">Appearance</div>
+        <ThemeToggle themeKey={themeKey} setThemeKey={setThemeKey} theme={theme} />
+      </div>
+
+      <div className="my-4" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+      <div className="space-y-2">
+        <div className="font-semibold">Import beacon assets (CSV)</div>
+        <Input type="file" accept=".csv,text/csv" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
+        <Button onClick={onImport} disabled={mode !== "backend"}>Import</Button>
+        {importResult ? <div className="text-sm">{importResult.message}</div> : null}
+      </div>
+
+      <div className="my-4" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+      <div className="space-y-2 text-sm" style={{ color: theme.muted }}>
+        <div className="font-semibold" style={{ color: theme.text }}>About</div>
+        <div>Field Services – Virtual Toolbox</div>
+        <div>Beacon Finder UUID: {ORG_UUID}</div>
+      </div>
+    </SurfaceCard>
+  );
+}
+
+// -----------------------------
+// Home (Toolbox)
+// -----------------------------
+
+// Routes: "toolbox" | "beacon_home" | "beacon_app" | "deployment"
+
+function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettings, theme }: any) {
+  return (
+    <PhoneFrame theme={theme}>
+      <Header
+        title="Field Services"
+        subtitle="Virtual Toolbox"
+        theme={theme}
+        right={
+          <div className="flex flex-col items-end gap-2 w-full">
+            <div className="self-end">{headerBadge}</div>
+            <Button
+              variant="secondary"
+              onClick={onOpenSettings}
+              title="Settings"
+              className="w-full justify-start"
+              style={{ borderColor: theme.border }}
+            >
+              <GearIcon theme={theme} />
+              <span className="ml-2">Settings</span>
+            </Button>
+          </div>
+        }
+      />
+
+      <SurfaceCard theme={theme}>
+        <div className="space-y-2">
+          <div className="text-sm" style={{ color: theme.muted }}>
+            Choose a tool.
+          </div>
+          <div className="grid grid-cols-1 gap-2">
+            <Button onClick={onOpenBeacon} className="justify-start">
+              <Radar className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Beacon Finder
+            </Button>
+            <Button onClick={onOpenDeployment} className="justify-start" variant="secondary" style={{ borderColor: theme.border }}>
+              <ScanLine className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Asset Deployment
+            </Button>
+          </div>
+        </div>
+      </SurfaceCard>
+
+      <div className="text-xs" style={{ color: theme.muted }}>
+        Prototype note: Beacon Finder simulates iBeacon signals. Asset Deployment simulates barcode scans.
+      </div>
+    </PhoneFrame>
+  );
+}
+
+// -----------------------------
+// Beacon Finder – Home (project select)
+// -----------------------------
+
+function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, onEnter, onGoToolbox, onOpenSettings, theme }: any) {
+  return (
+    <PhoneFrame theme={theme}>
+      <Header
+        title="Beacon Finder"
+        subtitle="Select a jobsite/project to find nearby assets."
+        theme={theme}
+        right={
+          <div className="flex flex-col items-end gap-2 w-full">
+            <div className="self-end">{headerBadge}</div>
+            <Button variant="secondary" onClick={onGoToolbox} className="w-full justify-start" style={{ borderColor: theme.border }}>
+              <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={onOpenSettings}
+              title="Settings"
+              className="w-full justify-start"
+              style={{ borderColor: theme.border }}
+            >
+              <GearIcon theme={theme} />
+              <span className="ml-2">Settings</span>
+            </Button>
+          </div>
+        }
+      />
+
+      <SurfaceCard theme={theme}>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Project / Jobsite</div>
+            <Select value={selectedMajor} onValueChange={setSelectedMajor}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a jobsite" />
+              </SelectTrigger>
+              <SelectContent>
+                {jobsites.map((j: any) => (
+                  <SelectItem key={j.major} value={String(j.major)}>
+                    {j.name} (Major {j.major})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="text-xs" style={{ color: theme.muted }}>
+              You can import assets in Settings before entering a project.
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => onEnter(selectedMajor)} disabled={!selectedMajor}>
+              Enter project
+            </Button>
+            <Button variant="secondary" onClick={() => onEnter("all")} style={{ borderColor: theme.border }}>
+              View all
+            </Button>
+          </div>
+        </div>
+      </SurfaceCard>
+    </PhoneFrame>
+  );
+}
+
+// -----------------------------
+// Beacon Finder – app
+// -----------------------------
+
+function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
+  return (
+    <div className="space-y-3">
+      {rows.length === 0 ? (
+        <div className="text-sm" style={{ color: theme.muted }}>
+          No assets match the current filter.
+        </div>
+      ) : (
+        rows.map((row) => {
+          const feet = ft(row.meters);
+          const st = stabilityLabel(row.madMeters);
+          const tr = trendLabel(row.deltaMeters);
+          const TrendIcon = tr.Icon;
+
+          return (
+            <SurfaceCard key={row.key} theme={theme}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-2xl p-2" style={{ border: `1px solid ${theme.border}` }}>
+                    <AvatarIcon assetType={row.asset.assetType} theme={theme} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-semibold">{row.asset.displayName}</div>
+                      <Badge variant={st.variant}>{st.label}</Badge>
+                      {row.fresh ? <Badge>Live</Badge> : <Badge variant="secondary">Out of range</Badge>}
+                    </div>
+
+                    <div className="text-sm" style={{ color: theme.muted }}>
+                      {jobsiteName(row.asset.jobsiteMajor)}
+                      {row.asset.locationHint ? ` • ${row.asset.locationHint}` : ""}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-sm">
+                      <div className="font-medium">Distance: {feet == null ? "Unknown" : `${Math.round(feet)} ft`}</div>
+                      <div className="flex items-center gap-1" style={{ color: theme.muted }}>
+                        <TrendIcon className="h-4 w-4" style={{ color: theme.accent }} /> {tr.label}
+                      </div>
+                      <div style={{ color: theme.muted }}>Last seen: {row.age == null ? "Never" : `${formatAge(row.age)} ago`}</div>
+                    </div>
+
+                    <div className="text-xs" style={{ color: theme.muted }}>
+                      Beacon: major {row.beacon.major} • minor {row.beacon.minor} • RSSI {row.rssi ?? "—"} dBm
+                    </div>
+                  </div>
+                </div>
+
+                <Button onClick={() => onFind(row)} className="shrink-0">
+                  <ArrowRight className="h-4 w-4 mr-2" /> Find
+                </Button>
+              </div>
+            </SurfaceCard>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTargetKey, theme }: any) {
+  // Geo-pin emulation: user pins a target position, then distance updates as they walk (GPS-based, best-effort).
+  const [geoPos, setGeoPos] = useState(null);
+  const [geoPin, setGeoPin] = useState(null);
+  const [geoErr, setGeoErr] = useState<string | null>(null);
+  const [geoLastDist, setGeoLastDist] = useState<number | null>(null);
+  const [geoDelta, setGeoDelta] = useState<number | null>(null);
+
+  useEffect(() => {
+    setGeoErr(null);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setGeoErr("Geolocation not available in this environment.");
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (p) => {
+        setGeoPos({
+          lat: p.coords.latitude,
+          lon: p.coords.longitude,
+          acc: p.coords.accuracy,
+          ts: p.timestamp,
+        });
+        setGeoErr(null);
+      },
+      (e) => {
+        setGeoErr(e?.message || "Location permission denied or unavailable.");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 500,
+        timeout: 15000,
+      }
+    );
+
+    return () => {
+      try {
+        navigator.geolocation.clearWatch(watchId);
+      } catch {
+        // ignore
+      }
+    };
+  }, [selectedRow?.key]);
+
+  const geoDist = useMemo(() => {
+    const d = haversineMeters(geoPos, geoPin);
+    if (d == null) return null;
+    if (geoLastDist == null) {
+      // initialize on first compute after pin
+      return d;
+    }
+    return d;
+  }, [geoPos, geoPin, geoLastDist]);
+
+  useEffect(() => {
+    if (geoDist == null) return;
+    if (geoLastDist == null) {
+      setGeoLastDist(geoDist);
+      setGeoDelta(null);
+      return;
+    }
+    setGeoDelta(geoDist - geoLastDist);
+    setGeoLastDist(geoDist);
+  }, [geoDist]);
+
+  const pinHere = useCallback(() => {
+    if (!geoPos) return;
+    setGeoPin({ lat: geoPos.lat, lon: geoPos.lon, ts: nowMs() });
+    setGeoLastDist(null);
+    setGeoDelta(null);
+  }, [geoPos]);
+
+  const clearPin = useCallback(() => {
+    setGeoPin(null);
+    setGeoLastDist(null);
+    setGeoDelta(null);
+  }, []);
+
+  const geoTrend = trendLabel(geoDelta);
+  const GeoTrendIcon = geoTrend.Icon;
+
+  const selectedFeet = selectedState ? ft(selectedState.emaMeters) : null;
+  const st = stabilityLabel(selectedState?.madMeters ?? null);
+  const tr = trendLabel(selectedState?.deltaMeters ?? null);
+  const TrendIcon = tr.Icon;
+
+  const geoFeet = geoDist == null ? null : ft(geoDist);
+
+  return (
+    <SurfaceCard theme={theme}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="text-lg font-semibold">{selectedRow.asset.displayName}</div>
+          <div className="text-sm" style={{ color: theme.muted }}>
+            Beacon: major {selectedRow.beacon.major} • minor {selectedRow.beacon.minor}
+          </div>
+        </div>
+        <Button variant="secondary" onClick={onBack} style={{ borderColor: theme.border }}>
+          Back
+        </Button>
+      </div>
+
+      <div className="my-4" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={st.variant}>{st.label}</Badge>
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <TrendIcon className="h-4 w-4" style={{ color: theme.accent }} /> {tr.label}
+          </Badge>
+        </div>
+
+        <div className="rounded-2xl p-5" style={{ border: `1px solid ${theme.border}` }}>
+          <div className="text-sm" style={{ color: theme.muted }}>
+            Estimated distance (simulated beacon)
+          </div>
+          <div className="text-4xl font-semibold tracking-tight">{selectedFeet == null ? "—" : `${Math.round(selectedFeet)} ft`}</div>
+          <div className="mt-2 text-sm" style={{ color: theme.muted }}>
+            RSSI: {selectedState?.lastRssi ?? "—"} dBm • Updated {selectedState ? formatAge(nowMs() - selectedState.lastSeenMs) : "—"} ago
+          </div>
+        </div>
+
+        <div className="rounded-2xl p-4" style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}>
+          <div className="font-semibold">Geo-pin emulation (no beacons)</div>
+          <div className="text-sm mt-1" style={{ color: theme.muted }}>
+            Stand where the asset is supposed to be, tap <span style={{ color: theme.text, fontWeight: 600 }}>Pin here</span>, then walk.
+            The app will show whether you are getting closer or farther based on GPS location.
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <Button onClick={pinHere} disabled={!geoPos}>
+              <MapPin className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Pin here
+            </Button>
+            <Button variant="secondary" onClick={clearPin} disabled={!geoPin} style={{ borderColor: theme.border }}>
+              Clear pin
+            </Button>
+          </div>
+
+          <div className="mt-3 space-y-1 text-sm" style={{ color: theme.muted }}>
+            <div>
+              Current: {geoPos ? `${geoPos.lat.toFixed(5)}, ${geoPos.lon.toFixed(5)} (±${Math.round(geoPos.acc || 0)}m)` : "—"}
+            </div>
+            <div>Pin: {geoPin ? `${geoPin.lat.toFixed(5)}, ${geoPin.lon.toFixed(5)}` : "—"}</div>
+            <div className="flex items-center gap-2">
+              <div className="font-medium" style={{ color: theme.text }}>
+                Distance: {geoFeet == null ? "—" : `${Math.round(geoFeet)} ft`}
+              </div>
+              <div className="flex items-center gap-1">
+                <GeoTrendIcon className="h-4 w-4" style={{ color: theme.accent }} /> {geoTrend.label}
+              </div>
+            </div>
+            {geoErr ? <div className="text-destructive">{geoErr}</div> : null}
+          </div>
+
+          <div className="text-xs mt-2" style={{ color: theme.muted }}>
+            Note: GPS is coarse indoors; this is a demo-grade emulation until iBeacon is enabled.
+          </div>
+        </div>
+
+        <div className="rounded-2xl p-4" style={{ backgroundColor: theme.surface, border: `1px solid ${theme.border}` }}>
+          <div className="font-semibold">Guidance</div>
+          <div className="text-sm mt-1" style={{ color: theme.muted }}>
+            {st.label === "Unstable"
+              ? "Signal is unstable. Step away from rack faces/metal surfaces, hold the phone higher, and move 10–15 ft to re-sample."
+              : "Walk steadily and watch the trend. If the distance increases for ~5–10 seconds, turn ~45° and try again."}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant={simTargetKey === selectedRow.key ? "default" : "secondary"} onClick={() => setSimTargetKey(selectedRow.key)}>
+            <Radar className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Simulate walking toward
+          </Button>
+          <Button variant={simTargetKey == null ? "default" : "secondary"} onClick={() => setSimTargetKey(null)}>
+            <RefreshCw className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Simulate idle
+          </Button>
+        </div>
+      </div>
+    </SurfaceCard>
+  );
+}
+
+function CommissionScreen({ jobsites, commMajor, setCommMajor, commMinor, setCommMinor, commType, setCommType, commTag, setCommTag, onSave, theme }: any) {
+  return (
+    <SurfaceCard theme={theme}>
+      <div className="flex items-center gap-2">
+        <QrCode className="h-5 w-5" style={{ color: theme.accent }} />
+        <div className="text-lg font-semibold">Commission a beacon to an asset</div>
+      </div>
+
+      <div className="text-sm mt-1" style={{ color: theme.muted }}>
+        Scan beacon, enter asset type/tag, save mapping.
+      </div>
+
+      <div className="my-4" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+      <div className="grid grid-cols-1 gap-3">
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Jobsite (Major)</div>
+          <Select value={String(commMajor)} onValueChange={setCommMajor}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {jobsites.map((j: any) => (
+                <SelectItem key={j.major} value={String(j.major)}>
+                  {j.name} (Major {j.major})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Beacon Minor</div>
+          <Input value={commMinor} onChange={(e) => setCommMinor(e.target.value)} placeholder="e.g., 777" />
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Asset type</div>
+          <Input value={commType} onChange={(e) => setCommType(e.target.value)} placeholder="Access Point" />
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Asset tag</div>
+          <Input value={commTag} onChange={(e) => setCommTag(e.target.value)} placeholder="C1234" />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mt-4">
+        <Button onClick={onSave} disabled={!String(commMinor).trim()}>
+          Save assignment
+        </Button>
+        <Badge variant="secondary">UUID fixed (org-wide)</Badge>
+      </div>
+
+      <div className="text-xs mt-2" style={{ color: theme.muted }}>
+        UUID used: {ORG_UUID}
+      </div>
+    </SurfaceCard>
+  );
+}
+
+function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, setQ, tab, setTab, simRunning, setSimRunning, onHome, onOpenSettings, rows, onFind, selectedRow, selectedState, onBackFromFind, simTargetKey, setSimTargetKey, commissionProps, jobsiteName, theme }: any) {
+  return (
+    <PhoneFrame theme={theme}>
+      <div className="space-y-3">
+        <Header
+          title="Beacon Finder"
+          subtitle="Nearby assets → Find view with distance + trend + stability."
+          theme={theme}
+          right={
+            <div className="flex flex-col items-end gap-2 w-full">
+              <div className="self-end">{headerBadge}</div>
+              <Button variant="secondary" onClick={onHome} className="w-full justify-start" style={{ borderColor: theme.border }}>
+                <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={onOpenSettings}
+                title="Settings"
+                className="w-full justify-start"
+                style={{ borderColor: theme.border }}
+              >
+                <GearIcon theme={theme} />
+                <span className="ml-2">Settings</span>
+              </Button>
+              <Button
+                variant={simRunning ? "default" : "secondary"}
+                onClick={() => setSimRunning((v: boolean) => !v)}
+                className="w-full justify-start"
+                style={{ borderColor: theme.border }}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> {simRunning ? "Sim: Running" : "Sim: Paused"}
+              </Button>
+            </div>
+          }
+        />
+
+        <SurfaceCard theme={theme}>
+          <div className="space-y-3">
+            <Tabs value={tab} onValueChange={setTab} className="w-full">
+              <TabsList>
+                <TabsTrigger value="nearby">Nearby</TabsTrigger>
+                <TabsTrigger value="commission">Commission</TabsTrigger>
+                <TabsTrigger value="find" disabled={!selectedRow}>
+                  Find
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: theme.muted }} />
+                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search: asset tag, type, name, minor…" className="pl-9" />
+              </div>
+
+              <Select value={String(jobsiteMajor)} onValueChange={setJobsiteMajor}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select jobsite" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All jobsites</SelectItem>
+                  {jobsites.map((j: any) => (
+                    <SelectItem key={j.major} value={String(j.major)}>
+                      {j.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator />
+
+            {tab === "nearby" ? <NearbyList rows={rows} jobsiteName={jobsiteName} onFind={onFind} theme={theme} /> : null}
+
+            {tab === "find" && selectedRow ? (
+              <FindScreen
+                selectedRow={selectedRow}
+                selectedState={selectedState}
+                onBack={onBackFromFind}
+                simTargetKey={simTargetKey}
+                setSimTargetKey={setSimTargetKey}
+                theme={theme}
+              />
+            ) : null}
+
+            {tab === "commission" ? <CommissionScreen jobsites={jobsites} {...commissionProps} theme={theme} /> : null}
+          </div>
+        </SurfaceCard>
+
+        <div className="text-xs" style={{ color: theme.muted }}>
+          Note: Web prototype only. Mobile app would use CoreLocation/CoreMotion.
+        </div>
+      </div>
+    </PhoneFrame>
+  );
+}
+
+// -----------------------------
+// Asset Deployment
+// -----------------------------
+
+const STATUS_OPTIONS = ["In Stock", "In Transit", "In Use"];
+const LOCATION_OPTIONS = ["Birmingham Office", "Atlanta Office", "Jobsite Location"];
+
+
+
+function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: any) {
+  const [ticket, setTicket] = useState("SR-20498");
+  const [scanInput, setScanInput] = useState("");
+  const [scanned, setScanned] = useState<string[]>([]);
+  const [status, setStatus] = useState<Status>("In Use");
+  const [location, setLocation] = useState<LocationOpt>("Jobsite Location");
+  const [lookupResult, setLookupResult] = useState<any>(null);
+  const [submitResult, setSubmitResult] = useState<any>(null);
+
+  const addScan = useCallback(() => {
+    const v = scanInput.trim();
+    if (!v) return;
+    setScanned((prev) => (prev.includes(v) ? prev : [v, ...prev]));
+    setScanInput("");
+  }, [scanInput]);
+
+  const removeScan = useCallback((code) => {
+    setScanned((prev) => prev.filter((x) => x !== code));
+  }, []);
+
+  const lookupTicket = useCallback(async () => {
+    setSubmitResult(null);
+
+    if (!ticket.trim()) {
+      setLookupResult({ ok: false, message: "Enter a ticket number first." });
+      return;
+    }
+
+    if (mode === "backend") {
+      // Placeholder: expected endpoint contract
+      // GET /api/tickets/:ticketNumber -> { ticketNumber, assets: string[] }
+      try {
+        const r = await fetch(`${API_BASE}/api/tickets/${encodeURIComponent(ticket.trim())}`);
+        const j = await r.json();
+        if (!r.ok) throw new Error(j?.error || "Ticket lookup failed");
+        setLookupResult({ ok: true, message: `Ticket found. Assets attached: ${j.assets?.length ?? 0}.`, assets: j.assets || [] });
+      } catch (e) {
+        setLookupResult({ ok: false, message: String(e?.message || e) });
+      }
+      return;
+    }
+
+    const assets = (MOCK.ticketDB as any)[ticket.trim()] ?? null;
+    if (assets == null) {
+      setLookupResult({ ok: false, message: "Ticket not found (mock). Try INC-10001 or SR-20498." });
+      return;
+    }
+    setLookupResult({ ok: true, message: `Ticket found (mock). Assets attached: ${assets.length}.`, assets });
+  }, [ticket, mode]);
+
+  const submit = useCallback(async () => {
+    setSubmitResult(null);
+
+    const t = ticket.trim();
+    if (!t) {
+      setSubmitResult({ ok: false, message: "Ticket number is required." });
+      return;
+    }
+    if (scanned.length === 0) {
+      setSubmitResult({ ok: false, message: "Scan at least one asset barcode." });
+      return;
+    }
+
+    if (mode === "backend") {
+      // Placeholder: expected endpoint contract
+      // POST /api/asset-movements
+      // { ticketNumber, barcodes: string[], status, location }
+      try {
+        const r = await fetch(`${API_BASE}/api/asset-movements`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ticketNumber: t, barcodes: scanned, status, location }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j?.error || "Submission failed");
+        setSubmitResult({ ok: true, message: `Submitted. Attached ${j.attached ?? scanned.length} assets and updated status.` });
+      } catch (e) {
+        setSubmitResult({ ok: false, message: String(e?.message || e) });
+      }
+      return;
+    }
+
+    // Mock behavior:
+    const existing = (MOCK.ticketDB as any)[t];
+    if (existing == null) {
+      setSubmitResult({ ok: false, message: "Ticket not found (mock)." });
+      return;
+    }
+
+    const merged = Array.from(new Set([...(existing || []), ...scanned]));
+    (MOCK.ticketDB as any)[t] = merged;
+
+    setSubmitResult({
+      ok: true,
+      message: `Submitted (mock). Ticket ${t} now has ${merged.length} asset(s). Status → ${status}. Location → ${location}.`,
+    });
+
+    setLookupResult({ ok: true, message: `Ticket found (mock). Assets attached: ${merged.length}.`, assets: merged });
+  }, [ticket, scanned, status, location, mode]);
+
+  return (
+    <PhoneFrame theme={theme}>
+      <Header
+        title="Asset Deployment"
+        subtitle="Deploy assets by scanning barcodes and updating ticket, status, and location."
+        theme={theme}
+        right={
+          <div className="flex flex-col items-end gap-2 w-full">
+            <div className="self-end">{headerBadge}</div>
+            <Button variant="secondary" onClick={onHome} className="w-full justify-start" style={{ borderColor: theme.border }}>
+              <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={onOpenSettings}
+              title="Settings"
+              className="w-full justify-start"
+              style={{ borderColor: theme.border }}
+            >
+              <GearIcon theme={theme} />
+              <span className="ml-2">Settings</span>
+            </Button>
+          </div>
+        }
+      />
+
+      <SurfaceCard theme={theme}>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-5 w-5" style={{ color: theme.accent }} />
+            <div className="font-semibold">Ticket</div>
+          </div>
+
+          <Input value={ticket} onChange={(e) => setTicket(e.target.value)} placeholder="e.g., INC-10001" />
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={lookupTicket} style={{ borderColor: theme.border }}>
+              Check ticket
+            </Button>
+          </div>
+
+          {lookupResult ? (
+            <div className={`text-sm ${lookupResult.ok ? "" : "text-destructive"}`} style={{ color: lookupResult.ok ? theme.text : undefined }}>
+              {lookupResult.message}
+            </div>
+          ) : null}
+
+          <div className="my-2" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+          <div className="flex items-center gap-2">
+            <ScanLine className="h-5 w-5" style={{ color: theme.accent }} />
+            <div className="font-semibold">Scan assets</div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-sm" style={{ color: theme.muted }}>
+              Prototype: type a barcode (e.g., C1234) and press Add.
+            </div>
+            <div className="flex gap-2">
+              <Input value={scanInput} onChange={(e) => setScanInput(e.target.value)} placeholder="Barcode" />
+              <Button onClick={addScan}>
+                <Package className="h-4 w-4 mr-2" /> Add
+              </Button>
+            </div>
+          </div>
+
+          {scanned.length ? (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Scanned ({scanned.length})</div>
+              <div className="space-y-2">
+                {scanned.map((code) => (
+                  <div key={code} className="flex items-center justify-between rounded-xl px-3 py-2" style={{ border: `1px solid ${theme.border}` }}>
+                    <div className="font-medium">{code}</div>
+                    <Button variant="secondary" onClick={() => removeScan(code)} style={{ borderColor: theme.border }}>
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm" style={{ color: theme.muted }}>
+              No scanned assets yet.
+            </div>
+          )}
+
+          <div className="my-2" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+          <div className="grid grid-cols-1 gap-3">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Set status</div>
+              <Select value={status} onValueChange={setStatus as any}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Set location</div>
+              <Select value={location} onValueChange={setLocation as any}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LOCATION_OPTIONS.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Button onClick={submit}>Submit</Button>
+            <Badge variant="secondary">Will attach assets to ticket if missing</Badge>
+          </div>
+
+          {submitResult ? (
+            <div className={`text-sm ${submitResult.ok ? "" : "text-destructive"}`} style={{ color: submitResult.ok ? theme.text : undefined }}>
+              {submitResult.message}
+            </div>
+          ) : null}
+
+          <div className="text-xs" style={{ color: theme.muted }}>
+            Backend note: the real implementation would validate the ticket in your ticketing system and then update asset records.
+          </div>
+        </div>
+      </SurfaceCard>
+    </PhoneFrame>
+  );
+}
+
+// -----------------------------
+// Main
+// -----------------------------
+
+export default function VirtualToolboxPrototype() {
+  const { mode, jobsites, beaconAssets, setBeaconAssets } = useBackendOrMock();
+
+  // Theme
+  const [themeKey, setThemeKey] = useState(() => {
+    try {
+      const v = localStorage.getItem("fs_toolbox_theme");
+      return v === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("fs_toolbox_theme", themeKey);
+    } catch {
+      // ignore
+    }
+  }, [themeKey]);
+
+  const theme = THEMES[themeKey];
+
+  const headerBadge =
+    mode === "checking" ? (
+      <Badge variant="secondary">Checking backend…</Badge>
+    ) : mode === "backend" ? (
+      <Badge>Backend connected</Badge>
+    ) : (
+      <Badge variant="secondary">Mock data</Badge>
+    );
+
+  // Routing
+  const [route, setRoute] = useState<Route>("toolbox");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Settings import
+  const [importFile, setImportFile] = useState(null);
+  const [importResult, setImportResult] = useState<any>(null);
+
+  // Beacon Finder state
+  const [beaconHomeSelectedMajor, setBeaconHomeSelectedMajor] = useState("");
+  const [beaconTab, setBeaconTab] = useState("nearby");
+  const [beaconJobsiteMajor, setBeaconJobsiteMajor] = useState<string>("all");
+  const [beaconQ, setBeaconQ] = useState("");
+  const [selectedRow, setSelectedRow] = useState<any>(null);
+
+  // Ranging state
+  const [ranged, setRanged] = useState(() => new Map());
+
+  // Simulator
+  const [simRunning, setSimRunning] = useState(true);
+  const [simTargetKey, setSimTargetKey] = useState(null);
+  const simStateRef = useRef({});
+
+  const goToolbox = useCallback(() => {
+    // keep module states but return to main menu
+    setRoute("toolbox");
+    setSelectedRow(null);
+    setBeaconTab("nearby");
+    setSimTargetKey(null);
+  }, []);
+
+  const openBeacon = useCallback(() => {
+    setRoute("beacon_home");
+  }, []);
+
+  const openDeployment = useCallback(() => {
+    setRoute("deployment");
+  }, []);
+
+  const refreshBeaconAssets = useCallback(
+    async (majorFilter?: string) => {
+      if (mode !== "backend") return;
+      const major = majorFilter ?? beaconJobsiteMajor;
+      const url =
+        major === "all"
+          ? `${API_BASE}/api/assets`
+          : `${API_BASE}/api/assets?major=${encodeURIComponent(String(major))}`;
+      const a = await (await fetch(url)).json();
+      setBeaconAssets(a.assets || []);
+    },
+    [mode, beaconJobsiteMajor, setBeaconAssets]
+  );
+
+  const importBeaconAssetsCsv = useCallback(async () => {
+    setImportResult(null);
+
+    if (mode !== "backend") {
+      setImportResult({ ok: false, message: "Import requires backend mode." });
+      return;
+    }
+    if (!importFile) {
+      setImportResult({ ok: false, message: "Select a CSV file first." });
+      return;
+    }
+
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+      const r = await fetch(`${API_BASE}/api/import/assets`, { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok) {
+        setImportResult({ ok: false, message: j?.error || "Import failed" });
+        return;
+      }
+      setImportResult({ ok: true, message: `Imported: ${j.created} created, ${j.skipped} skipped, ${j.errors} errors.` });
+      await refreshBeaconAssets();
+    } catch (e) {
+      setImportResult({ ok: false, message: String(e?.message || e) });
+    }
+  }, [mode, importFile, refreshBeaconAssets]);
+
+  const enterBeaconProject = useCallback(
+    (major: string) => {
+      setBeaconJobsiteMajor(String(major));
+      setRoute("beacon_app");
+    },
+    [setBeaconJobsiteMajor]
+  );
+
+  const filteredBeaconAssets = useMemo(() => {
+    const needle = beaconQ.trim().toLowerCase();
+    return beaconAssets
+      .filter((a: any) => (beaconJobsiteMajor === "all" ? true : a.jobsiteMajor === Number(beaconJobsiteMajor)))
+      .filter((a: any) => {
+        if (!needle) return true;
+        return (
+          (a.displayName || "").toLowerCase().includes(needle) ||
+          (a.assetTag || "").toLowerCase().includes(needle) ||
+          (a.assetType || "").toLowerCase().includes(needle) ||
+          String(a.beacon?.minor || "").includes(needle)
+        );
+      });
+  }, [beaconAssets, beaconJobsiteMajor, beaconQ]);
+
+  const beaconRows = useMemo(() => {
+    return filteredBeaconAssets
+      .map((a: any) => {
+        const k = beaconKey(a.beacon);
+        const s = ranged.get(k);
+        const age = s ? nowMs() - s.lastSeenMs : null;
+        const fresh = s ? age <= 3000 : false;
+        return {
+          asset: a,
+          beacon: a.beacon,
+          key: k,
+          fresh,
+          age,
+          meters: s?.emaMeters ?? null,
+          madMeters: s?.madMeters ?? null,
+          deltaMeters: s?.deltaMeters ?? null,
+          rssi: s?.lastRssi ?? null,
+        };
+      })
+      .sort((x: any, y: any) => {
+        if (x.fresh !== y.fresh) return x.fresh ? -1 : 1;
+        const dx = x.meters ?? 1e9;
+        const dy = y.meters ?? 1e9;
+        if (dx !== dy) return dx - dy;
+        return (x.asset.displayName || "").localeCompare(y.asset.displayName || "");
+      });
+  }, [filteredBeaconAssets, ranged]);
+
+  const ingestObservation = useCallback((key, metersVal, rssi) => {
+    setRanged((prev) => {
+      const next = new Map(prev);
+      const curr = next.get(key) || {
+        samples: [],
+        lastSeenMs: 0,
+        emaMeters: null,
+        madMeters: null,
+        deltaMeters: null,
+        lastEmaMeters: null,
+        lastRssi: null,
+      };
+
+      const samples = [...curr.samples, metersVal].slice(-18);
+      const med = median(samples) as number;
+      const alpha = 0.25;
+      const ema = curr.emaMeters == null ? med : alpha * med + (1 - alpha) * curr.emaMeters;
+      const m = mad(samples);
+      const delta = curr.lastEmaMeters == null ? null : ema - curr.lastEmaMeters;
+
+      next.set(key, {
+        ...curr,
+        samples,
+        lastSeenMs: nowMs(),
+        lastRssi: rssi,
+        lastEmaMeters: ema,
+        emaMeters: ema,
+        madMeters: m,
+        deltaMeters: delta,
+      });
+
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!simRunning) return;
+    if (route !== "beacon_app") return; // Only simulate while in Beacon Finder app
+
+    const id = setInterval(() => {
+      const audible = beaconAssets
+        .filter((a: any) => (beaconJobsiteMajor === "all" ? true : a.jobsiteMajor === Number(beaconJobsiteMajor)))
+        .filter((a: any) => a.simulate !== false)
+        .slice(0, 12);
+
+      for (const a of audible) {
+        const k = beaconKey(a.beacon);
+        const st = (simStateRef.current[k] ||= { meters: 6 + Math.random() * 25 });
+
+        const toward = simTargetKey === k;
+        const drift = toward ? -0.35 : 0.05;
+        st.meters = clamp(st.meters + drift + (Math.random() - 0.5) * 0.6, 0.8, 35);
+
+        const rssi = Math.round(-45 - 18 * Math.log10(st.meters) + (Math.random() - 0.5) * 10);
+        ingestObservation(k, st.meters, rssi);
+      }
+    }, 650);
+
+    return () => clearInterval(id);
+  }, [simRunning, simTargetKey, beaconAssets, beaconJobsiteMajor, ingestObservation, route]);
+
+  const jobsiteName = useCallback(
+    (major) => {
+      const j = jobsites.find((x: any) => x.major === major);
+      return j ? j.name : `Jobsite ${major}`;
+    },
+    [jobsites]
+  );
+
+  const onFind = useCallback((row) => {
+    setSelectedRow(row);
+    setBeaconTab("find");
+    setSimTargetKey(row.key);
+  }, []);
+
+  const onBackFromFind = useCallback(() => {
+    setSelectedRow(null);
+    setBeaconTab("nearby");
+    setSimTargetKey(null);
+  }, []);
+
+  // Commissioning
+  const [commMinor, setCommMinor] = useState("");
+  const [commMajor, setCommMajor] = useState("1201");
+  const [commType, setCommType] = useState("Access Point");
+  const [commTag, setCommTag] = useState("C1234");
+
+  const commission = useCallback(async () => {
+    const minor = Number(commMinor);
+    const major = Number(commMajor);
+    if (!minor || !major) return;
+
+    const displayName = `${commType} – ${commTag}`;
+    const beacon = { uuid: ORG_UUID, major, minor };
+
+    if (mode === "backend") {
+      await fetch(`${API_BASE}/api/assets`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName, assetType: commType, assetTag: commTag, jobsiteMajor: major, locationHint: "", beacon }),
+      });
+      await refreshBeaconAssets();
+      setBeaconTab("nearby");
+      return;
+    }
+
+    setBeaconAssets((prev: any[]) => [
+      { id: `m${Math.random().toString(16).slice(2)}`, displayName, assetType: commType, assetTag: commTag, jobsiteMajor: major, locationHint: "", beacon },
+      ...prev,
+    ]);
+    setBeaconTab("nearby");
+  }, [commMinor, commMajor, commType, commTag, mode, refreshBeaconAssets, setBeaconAssets]);
+
+  const selectedState = selectedRow ? ranged.get(selectedRow.key) : null;
+
+  const settingsPanel = settingsOpen ? (
+    <SettingsPanel
+      mode={mode}
+      importFile={importFile}
+      setImportFile={setImportFile}
+      importResult={importResult}
+      onImport={importBeaconAssetsCsv}
+      onClose={() => setSettingsOpen(false)}
+      theme={theme}
+      themeKey={themeKey}
+      setThemeKey={setThemeKey}
+    />
+  ) : null;
+
+  // Render
+  if (route === "toolbox") {
+    return (
+      <>
+        <ToolboxHome
+          headerBadge={headerBadge}
+          onOpenBeacon={openBeacon}
+          onOpenDeployment={openDeployment}
+          onOpenSettings={() => setSettingsOpen(true)}
+          theme={theme}
+        />
+        {settingsPanel}
+      </>
+    );
+  }
+
+  if (route === "beacon_home") {
+    return (
+      <>
+        <BeaconHome
+          headerBadge={headerBadge}
+          jobsites={jobsites}
+          selectedMajor={beaconHomeSelectedMajor}
+          setSelectedMajor={setBeaconHomeSelectedMajor}
+          onEnter={enterBeaconProject}
+          onGoToolbox={goToolbox}
+          onOpenSettings={() => setSettingsOpen(true)}
+          theme={theme}
+        />
+        {settingsPanel}
+      </>
+    );
+  }
+
+  if (route === "deployment") {
+    return (
+      <>
+        <AssetDeployment
+          headerBadge={headerBadge}
+          onHome={goToolbox}
+          onOpenSettings={() => setSettingsOpen(true)}
+          mode={mode}
+          theme={theme}
+        />
+        {settingsPanel}
+      </>
+    );
+  }
+
+  // route === "beacon_app"
+  return (
+    <>
+      <BeaconApp
+        headerBadge={headerBadge}
+        jobsites={jobsites}
+        jobsiteMajor={beaconJobsiteMajor}
+        setJobsiteMajor={setBeaconJobsiteMajor}
+        q={beaconQ}
+        setQ={setBeaconQ}
+        tab={beaconTab}
+        setTab={setBeaconTab}
+        simRunning={simRunning}
+        setSimRunning={setSimRunning}
+        onHome={goToolbox}
+        onOpenSettings={() => setSettingsOpen(true)}
+        rows={beaconRows}
+        onFind={onFind}
+        selectedRow={selectedRow}
+        selectedState={selectedState}
+        onBackFromFind={onBackFromFind}
+        simTargetKey={simTargetKey}
+        setSimTargetKey={setSimTargetKey}
+        commissionProps={{
+          commMajor,
+          setCommMajor,
+          commMinor,
+          setCommMinor,
+          commType,
+          setCommType,
+          commTag,
+          setCommTag,
+          onSave: commission,
+        }}
+        jobsiteName={jobsiteName}
+        theme={theme}
+      />
+      {settingsPanel}
+    </>
+  );
+}
+
