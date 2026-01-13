@@ -1,10 +1,3 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   ArrowDownRight,
   ArrowRight,
@@ -39,6 +32,110 @@ import {
 // -----------------------------
 // Config + Mock Data
 // -----------------------------
+// -------------------------------------------------
+// Simple local UI components (Option A)
+// -------------------------------------------------
+
+function Button({ children, onClick, disabled, variant = "default", style, className }: any) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={className}
+      style={{
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: "1px solid rgba(0,0,0,0.12)",
+        background: variant === "secondary" ? "transparent" : "rgba(0,0,0,0.08)",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.6 : 1,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Input(props: any) {
+  return (
+    <input
+      {...props}
+      style={{
+        width: "100%",
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: "1px solid rgba(0,0,0,0.18)",
+        background: "transparent",
+      }}
+    />
+  );
+}
+
+function Badge({ children, variant = "default" }: any) {
+  const bg =
+    variant === "destructive"
+      ? "rgba(220,38,38,0.15)"
+      : variant === "secondary"
+      ? "rgba(0,0,0,0.06)"
+      : "rgba(0,0,0,0.1)";
+  return (
+    <span
+      style={{
+        padding: "3px 8px",
+        borderRadius: 999,
+        fontSize: 12,
+        border: "1px solid rgba(0,0,0,0.12)",
+        background: bg,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Separator() {
+  return <div style={{ height: 1, background: "rgba(0,0,0,0.12)", margin: "10px 0" }} />;
+}
+
+// Tabs (very lightweight)
+function Tabs({ value, onValueChange, children }: any) {
+  return <div>{children}</div>;
+}
+function TabsList({ children }: any) {
+  return <div style={{ display: "flex", gap: 8 }}>{children}</div>;
+}
+function TabsTrigger({ value, children, disabled, onClick }: any) {
+  return (
+    <Button onClick={onClick} disabled={disabled} variant="secondary">
+      {children}
+    </Button>
+  );
+}
+
+// Select (native)
+function Select({ value, onValueChange, children }: any) {
+  return (
+    <select value={value} onChange={(e) => onValueChange(e.target.value)}>
+      {children}
+    </select>
+  );
+}
+function SelectItem({ value, children }: any) {
+  return <option value={value}>{children}</option>;
+}
+function SelectTrigger({ children }: any) {
+  return <>{children}</>;
+}
+function SelectValue() {
+  return null;
+}
+function SelectContent({ children }: any) {
+  return <>{children}</>;
+}
 
 const API_BASE = "http://localhost:8080";
 const ORG_UUID = "2F234454-CF6D-4A0F-ADF2-F4911BA9FFA6";
