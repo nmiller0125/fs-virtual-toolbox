@@ -1376,13 +1376,6 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       stopCamera();
     };
   }, [cameraOpen, stopCamera]);
-  const [ticket, setTicket] = useState("SR-20498");
-  const [scanInput, setScanInput] = useState("");
-  const [scanned, setScanned] = useState<string[]>([]);
-  const [status, setStatus] = useState<Status>("In Use");
-  const [location, setLocation] = useState<LocationOpt>("Jobsite Location");
-  const [lookupResult, setLookupResult] = useState<any>(null);
-  const [submitResult, setSubmitResult] = useState<any>(null);
 
   const addScan = useCallback(() => {
     const v = scanInput.trim();
@@ -1952,23 +1945,6 @@ export default function VirtualToolboxPrototype() {
 
   const settingsPanel = settingsOpen ? (
     <SettingsModal
-      mode={mode}
-      importFile={importFile}
-      setImportFile={setImportFile}
-      importResult={importResult}
-      onImport={importBeaconAssetsCsv}
-      onClose={() => setSettingsOpen(false)}
-      theme={theme}
-      themeKey={themeKey}
-      setThemeKey={setThemeKey}
-    />
-  ) : null;
-
-  // Render
-  if (route === "toolbox") {
-    return (
-      <>
-        <ToolboxHome
       mode={mode}
       importFile={importFile}
       setImportFile={setImportFile}
