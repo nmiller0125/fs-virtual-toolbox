@@ -42,6 +42,8 @@ function Button({ children, onClick, disabled, variant = "default", style, class
     lineHeight: 1,
     transition: "transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, border-color 120ms ease",
     boxShadow: "0 1px 0 rgba(0,0,0,0.05)",
+    maxWidth: "100%",
+    boxSizing: "border-box",
   };
 
   const variants: Record<BtnVariant, React.CSSProperties> = {
@@ -144,6 +146,11 @@ function Badge({ children, variant = "default", className, style }: any) {
         fontSize: 12,
         fontWeight: 600,
         letterSpacing: 0.2,
+        maxWidth: "100%",
+        boxSizing: "border-box",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
         ...(styles[variant] ?? styles.secondary),
         ...style,
       }}
@@ -470,7 +477,7 @@ function PhoneFrame({ children, theme }: any) {
           "--muted": theme.muted,
         } as React.CSSProperties}
       >
-        <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: 16, display: "flex", flexDirection: "column", gap: 14, boxSizing: "border-box" }}>
           {children}
         </div>
       </div>
@@ -516,7 +523,7 @@ function Header({ title, subtitle, right, theme }: any) {
           </div>
         ) : null}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, minWidth: 170, maxWidth: 200 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, minWidth: 0, flex: "0 1 170px", maxWidth: "45%" }}>
         {right}
       </div>
     </div>
@@ -533,7 +540,6 @@ function SurfaceCard({ children, theme, className = "", style }: any) {
         backgroundColor: theme.surface,
         border: `1px solid ${theme.border}`,
         boxShadow: "0 10px 26px rgba(0,0,0,0.10)",
-        backdropFilter: "blur(8px)",
         ...style,
       }}
     >
@@ -607,9 +613,20 @@ function useBackendOrMock() {
 // Settings
 // -----------------------------
 
-function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport, onClose, theme, themeKey, setThemeKey }: any) {
+function SettingsPanel($1) {
+  const panelBg = themeKey === "dark" ? "#2a2a2a" : "#f8f7f4";
+  const panelBorder = themeKey === "dark" ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.12)";
   return (
-    <SurfaceCard theme={theme} style={{ width: "100%", maxWidth: 360 }}>
+    <SurfaceCard
+      theme={theme}
+      style={{
+        width: "100%",
+        maxWidth: 360,
+        backgroundColor: panelBg,
+        border: `1px solid ${panelBorder}`,
+        boxShadow: "0 18px 50px rgba(0,0,0,0.22)",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2 }}>Settings</div>
         <Button variant="secondary" onClick={onClose} style={{ borderColor: theme.border }}>
@@ -1634,7 +1651,6 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             justifyContent: "center",
             padding: 16,
             background: "rgba(0,0,0,0.55)",
-            backdropFilter: "blur(6px)",
           }}
         >
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 390 }}>
