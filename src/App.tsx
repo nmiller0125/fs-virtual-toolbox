@@ -17,6 +17,7 @@ import {
   Server,
   Sun,
   Wifi,
+  X,
 } from "lucide-react";
 
 // -------------------------------------------------
@@ -645,6 +646,9 @@ function SurfaceCard({ children, theme, style }: any) {
         backgroundColor: theme.surface,
         border: `1px solid ${theme.border}`,
         boxShadow: "0 10px 26px rgba(0,0,0,0.10)",
+        width: "100%",
+        maxWidth: "100%",
+        overflow: "hidden",
         ...style,
       }}
     >
@@ -1313,117 +1317,104 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const [lookupResult, setLookupResult] = useState<any>(null);
   const [submitResult, setSubmitResult] = useState<any>(null);
 
-  // Camera scanning (BarcodeDetector best-effort)
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const rafRef = useRef<number | null>(null);
-
-  const stopCamera = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      try {
-        (videoRef.current as any).srcObject = null;
-      } catch {
-        // ignore
-      }
-    }
+  // Toast notification
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | null>(null);
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 1800);
   }, []);
 
-  const openCamera = useCallback(() => {
-    setCameraError(null);
-    if (typeof window === "undefined") {
-      setCameraError("Camera is not available in this environment.");
-      return;
+  // Camera scanning (html5-qrcode)
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const qrRef = useRef<any>(null);
+  const qrRegionId = "qr-reader-region";
+
+  const addCode = useCallback(
+    (code: string) => {
+      const v = String(code || "").trim();
+      if (!v) return;
+      setScanned((prev) => (prev.includes(v) ? prev : [v, ...prev]));
+      setScanInput("");
+      showToast(`Scanned: ${v}`);
+    },
+    [showToast]
+  );
+
+  const stopScanner = useCallback(async () => {
+    try {
+      if (qrRef.current) {
+        const inst = qrRef.current;
+        qrRef.current = null;
+        if (inst.isScanning) {
+          await inst.stop();
+        }
+        await inst.clear();
+      }
+    } catch {
+      // ignore
     }
-    if (!(navigator as any).mediaDevices?.getUserMedia) {
-      setCameraError("Camera API not supported in this browser.");
-      setCameraOpen(true);
-      return;
-    }
-    setCameraOpen(true);
   }, []);
 
   useEffect(() => {
     if (!cameraOpen) {
-      stopCamera();
+      stopScanner();
       return;
     }
 
     let cancelled = false;
-
     (async () => {
+      setCameraError(null);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        });
+        const mod: any = await import("html5-qrcode");
+        const Html5Qrcode = mod.Html5Qrcode;
 
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
+        if (cancelled) return;
 
-        streamRef.current = stream;
-        if (videoRef.current) {
-          (videoRef.current as any).srcObject = stream;
-          await videoRef.current.play();
-        }
+        const qr = new Html5Qrcode(qrRegionId);
+        qrRef.current = qr;
 
-        const hasDetector = typeof (window as any).BarcodeDetector !== "undefined";
-        if (!hasDetector) {
-          setCameraError("BarcodeDetector is not available in this browser (iOS Safari often blocks it). Use manual entry for now.");
-          return;
-        }
+        const config = { fps: 10, qrbox: { width: 260, height: 200 }, aspectRatio: 1.777 };
 
-        const formats = ["qr_code", "code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "itf", "pdf417", "data_matrix"];
-        const detector = new (window as any).BarcodeDetector({ formats });
-
-        const tick = async () => {
-          if (cancelled) return;
-          const v = videoRef.current;
-          if (!v) return;
-          try {
-            const barcodes = await detector.detect(v);
-            if (barcodes?.length) {
-              const raw = (barcodes[0].rawValue || "").trim();
-              if (raw) {
-                setScanned((prev) => (prev.includes(raw) ? prev : [raw, ...prev]));
-                setScanInput("");
-                setCameraOpen(false);
-                return;
-              }
-            }
-          } catch {
-            // ignore
+        await qr.start(
+          { facingMode: "environment" },
+          config,
+          (decodedText: string) => {
+            // Success: add + close
+            addCode(decodedText);
+            setCameraOpen(false);
+          },
+          () => {
+            // ignore scan errors (noise)
           }
-          rafRef.current = requestAnimationFrame(tick);
-        };
-
-        rafRef.current = requestAnimationFrame(tick);
+        );
       } catch (e: any) {
-        setCameraError(e?.message || "Unable to access camera (permission denied?).");
+        setCameraError(e?.message || "Unable to start camera scanner (permission denied or unsupported browser).");
       }
     })();
 
     return () => {
       cancelled = true;
-      stopCamera();
+      stopScanner();
     };
-  }, [cameraOpen, stopCamera]);
+  }, [cameraOpen, addCode, stopScanner]);
+
+  const openCamera = useCallback(() => {
+    setCameraError(null);
+    setCameraOpen(true);
+  }, []);
+
+  const closeCamera = useCallback(() => {
+    setCameraOpen(false);
+  }, []);
 
   const addScan = useCallback(() => {
     const v = scanInput.trim();
     if (!v) return;
-    setScanned((prev) => (prev.includes(v) ? prev : [v, ...prev]));
-    setScanInput("");
-  }, [scanInput]);
+    addCode(v);
+  }, [scanInput, addCode]);
 
   const removeScan = useCallback((code: string) => {
     setScanned((prev) => prev.filter((x) => x !== code));
@@ -1522,7 +1513,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         <Header title="Asset Deployment" subtitle="Deploy assets by scanning barcodes and updating ticket, status, and location." theme={theme} />
 
         <SurfaceCard theme={theme}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <ClipboardList className="h-5 w-5" style={{ color: theme.accent }} />
               <div style={{ fontWeight: 950, color: theme.text }}>Ticket</div>
@@ -1545,16 +1536,16 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
               <div style={{ fontWeight: 950, color: theme.text }}>Scan assets</div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
               <div style={{ fontSize: 13, color: theme.muted }}>
                 Use <span style={{ color: theme.text, fontWeight: 950 }}>Scan with camera</span>, or type a barcode and press Add.
               </div>
 
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", width: "100%", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 180px", minWidth: 0 }}>
                   <Input value={scanInput} onChange={(e: any) => setScanInput(e.target.value)} placeholder="Barcode" />
                 </div>
-                <Button onClick={addScan} variant="secondary" style={{ borderColor: theme.border, padding: "10px 12px" }}>
+                <Button onClick={addScan} variant="secondary" style={{ borderColor: theme.border, padding: "10px 12px", flex: "0 0 auto" }}>
                   <Package className="h-4 w-4" /> Add
                 </Button>
               </div>
@@ -1565,7 +1556,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             </div>
 
             {scanned.length ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
                 <div style={{ fontSize: 13, fontWeight: 950, color: theme.text }}>Scanned ({scanned.length})</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {scanned.map((code) => (
@@ -1579,11 +1570,12 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                         borderRadius: 14,
                         padding: "10px 12px",
                         border: `1px solid ${theme.border}`,
+                        width: "100%",
                         maxWidth: "100%",
                       }}
                     >
-                      <div style={{ fontWeight: 950, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{code}</div>
-                      <Button variant="secondary" onClick={() => removeScan(code)} style={{ borderColor: theme.border, padding: "10px 12px" }}>
+                      <div style={{ fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{code}</div>
+                      <Button variant="secondary" onClick={() => removeScan(code)} style={{ borderColor: theme.border, padding: "10px 12px", flex: "0 0 auto" }}>
                         Remove
                       </Button>
                     </div>
@@ -1596,7 +1588,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
             <Separator style={{ margin: "8px 0" }} />
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, width: "100%" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontSize: 13, fontWeight: 950, color: theme.text }}>Set status</div>
                 <Select value={status} onValueChange={setStatus as any}>
@@ -1632,6 +1624,27 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             </div>
           </div>
         </SurfaceCard>
+
+        {toast ? (
+          <div
+            style={{
+              position: "sticky",
+              bottom: 0,
+              alignSelf: "center",
+              marginTop: "auto",
+              padding: "8px 10px",
+              borderRadius: 999,
+              border: `1px solid ${theme.border}`,
+              background: themeKeyFromTheme(theme) === "dark" ? "rgba(0,0,0,0.65)" : "rgba(255,255,255,0.85)",
+              color: theme.text,
+              fontWeight: 900,
+              fontSize: 13,
+              maxWidth: "100%",
+            }}
+          >
+            {toast}
+          </div>
+        ) : null}
       </PhoneFrame>
 
       {cameraOpen ? (
@@ -1639,7 +1652,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
           <div
             role="dialog"
             aria-modal="true"
-            onClick={() => setCameraOpen(false)}
+            onClick={closeCamera}
             style={{
               position: "fixed",
               inset: 0,
@@ -1656,22 +1669,21 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
               <SurfaceCard theme={theme} style={{ padding: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                   <div style={{ fontWeight: 950, color: theme.text }}>Scan barcode</div>
-                  <Button variant="secondary" onClick={() => setCameraOpen(false)} style={{ borderColor: theme.border }}>
-                    Close
+                  <Button variant="secondary" onClick={closeCamera} style={{ borderColor: theme.border, padding: "10px 12px" }} title="Close">
+                    <X style={{ height: 16, width: 16, color: theme.accent }} />
                   </Button>
                 </div>
 
-                <div style={{ fontSize: 12, color: theme.muted, marginTop: 8 }}>Point the camera at the barcode. The first detected code will be added.</div>
-
-                <div style={{ marginTop: 12, borderRadius: 16, overflow: "hidden", border: `1px solid ${theme.border}` }}>
-                  <video ref={videoRef} playsInline muted style={{ width: "100%", height: 360, objectFit: "cover", background: "#000" }} />
+                <div style={{ fontSize: 12, color: theme.muted, marginTop: 8 }}>
+                  Point the camera at the barcode. When a code is recognized, it will be added automatically.
                 </div>
 
-                {cameraError ? (
-                  <div style={{ marginTop: 10, fontSize: 13, color: theme.muted }}>{cameraError}</div>
-                ) : (
-                  <div style={{ marginTop: 10, fontSize: 13, color: theme.muted }}>If nothing scans, try more light and move closer/farther.</div>
-                )}
+                <div style={{ marginTop: 12, borderRadius: 16, overflow: "hidden", border: `1px solid ${theme.border}` }}>
+                  <div id={qrRegionId} style={{ width: "100%", height: 360, background: "#000" }} />
+                </div>
+
+                {cameraError ? <div style={{ marginTop: 10, fontSize: 13, color: "#dc2626" }}>{cameraError}</div> : null}
+                <div style={{ marginTop: 10, fontSize: 13, color: theme.muted }}>Tip: improve lighting and hold steady 6–10 inches from the barcode.</div>
               </SurfaceCard>
             </div>
           </div>
@@ -1679,6 +1691,10 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       ) : null}
     </>
   );
+}
+
+function themeKeyFromTheme(theme: any): "dark" | "light" {
+  return String(theme?.bg || "").toLowerCase() === "#212121" ? "dark" : "light";
 }
 
 // -------------------------------------------------
