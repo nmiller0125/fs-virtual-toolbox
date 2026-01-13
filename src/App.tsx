@@ -34,126 +34,17 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   render() {
     if (this.state.hasError) {
       return (
-        <div
-        style={{
-          // Explicit sizing to preserve 9:16 while keeping a real height for iOS scroll.
-          height: "min(calc(100vh - 32px), 760px)",
-          width: "min(calc((100vh - 32px) * 9 / 16), 390px)",
-          borderRadius: 36,
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          backgroundColor: theme.bg,
-          color: theme.text,
-          border: `1px solid ${theme.border}`,
-          boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
-          minHeight: 0,
-        }}
-      >
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            overflowX: "hidden",
-            WebkitOverflowScrolling: "touch",
-            padding: 16,
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-            minWidth: 0,
-            minHeight: 0,
-            touchAction: "pan-y",
-          }}
-        >
-          {children}
-        </div>
-
-        {bottomBar ? (
-          <div style={{ padding: "12px 12px", borderTop: `1px solid ${theme.border}`, background: theme.bg, flex: "0 0 auto" }}>
-            {bottomBar}
+        <div style={{ padding: 16, fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" }}>
+          <div style={{ fontWeight: 900, marginBottom: 8 }}>Something went wrong</div>
+          <div style={{ fontSize: 12, opacity: 0.8, whiteSpace: "pre-wrap" }}>
+            {String(this.state.error?.message || this.state.error || "Unknown error")}
           </div>
-        ) : null}
-      </div>
-    </div>
-
-      {subtitle ? <div style={{ fontSize: 13, lineHeight: 1.35, color: theme.muted }}>{subtitle}</div> : null}
-    </div>
-  );
-}
-
-function SurfaceCard({ children, theme, style }: any) {
-  return (
-    <div
-      style={{
-        borderRadius: 18,
-        padding: 16,
-        backgroundColor: theme.surface,
-        border: `1px solid ${theme.border}`,
-        boxShadow: "0 10px 26px rgba(0,0,0,0.10)",
-        width: "100%",
-        maxWidth: "100%",
-        overflow: "hidden",
-        minWidth: 0,
-        ...style,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function BottomNav({ left, center, right }: any) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, alignItems: "center", width: "100%", minWidth: 0 }}>
-      <div style={{ minWidth: 0, display: "flex", justifyContent: "flex-start" }}>{left}</div>
-      <div style={{ minWidth: 0, display: "flex", justifyContent: "center" }}>{center}</div>
-      <div style={{ minWidth: 0, display: "flex", justifyContent: "flex-end" }}>{right}</div>
-    </div>
-  );
-}
-
-function AvatarIcon({ assetType, theme }: any) {
-  const t = (assetType || "").toLowerCase();
-  const style = { color: theme.accent };
-  if (t.includes("access") || t.includes("ap")) return <Wifi style={{ height: 18, width: 18, ...style }} />;
-  if (t.includes("switch") || t.includes("router")) return <Server style={{ height: 18, width: 18, ...style }} />;
-  return <MapPin style={{ height: 18, width: 18, ...style }} />;
-}
-
-function useBackendOrMock() {
-  const [mode, setMode] = useState<"checking" | "backend" | "mock">("checking");
-  const [jobsites, setJobsites] = useState<any[]>([]);
-  const [beaconAssets, setBeaconAssets] = useState<any[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const r = await fetch(`${API_BASE}/api/health`, { cache: "no-store" as any });
-        if (!r.ok) throw new Error("health not ok");
-
-        const j = await (await fetch(`${API_BASE}/api/jobsites`, { cache: "no-store" as any })).json();
-        const a = await (await fetch(`${API_BASE}/api/assets`, { cache: "no-store" as any })).json();
-
-        if (cancelled) return;
-        setJobsites(j.jobsites || []);
-        setBeaconAssets(a.assets || []);
-        setMode("backend");
-      } catch {
-        if (cancelled) return;
-        setJobsites(MOCK.jobsites);
-        setBeaconAssets(MOCK.beaconAssets);
-        setMode("mock");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { mode, jobsites, beaconAssets, setBeaconAssets };
+          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.8 }}>Refresh the page after redeploying.</div>
+        </div>
+      );
+    }
+    return this.props.children as any;
+  }
 }
 
 function SettingsModal({ mode, importFile, setImportFile, importResult, onImport, onClose, theme, themeKey, setThemeKey }: any) {
