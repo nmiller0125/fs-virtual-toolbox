@@ -498,19 +498,15 @@ function PhoneFrame({ children, bottomBar, theme }: any) {
           width: "min(calc((100vh - 32px) * 9 / 16), 390px)",
           borderRadius: 36,
           overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          backgroundColor: theme.bg,
+          $1
+          minHeight: 0,
           color: theme.text,
           border: `1px solid ${theme.border}`,
           boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
         }}
       >
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            overflowX: "hidden",
+        $1
+            minHeight: 0,
             WebkitOverflowScrolling: "touch",
             padding: 16,
             display: "flex",
