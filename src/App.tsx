@@ -1,6 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-$1} from "lucide-react";
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  ClipboardList,
+  Cog as SettingsIcon,
+  Home,
+  MapPin,
+  Moon,
+  Package,
+  QrCode,
+  Radar,
+  RefreshCw,
+  ScanLine,
+  Search,
+  Server,
+  Sun,
+  Wifi,
+} from "lucide-react";
 
 // -------------------------------------------------
 // Error Boundary (prevents blank screen on runtime errors)
@@ -828,7 +845,7 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
           center={headerBadge}
           right={
             <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} /> Settings
+              <Settings style={{ height: 16, width: 16, color: theme.accent }} /> Settings
             </Button>
           }
         />
@@ -882,7 +899,7 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
           center={headerBadge}
           right={
             <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} /> Settings
+              <Settings style={{ height: 16, width: 16, color: theme.accent }} /> Settings
             </Button>
           }
         />
@@ -1229,7 +1246,7 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
           }
           right={
             <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} /> Settings
+              <Settings style={{ height: 16, width: 16, color: theme.accent }} /> Settings
             </Button>
           }
         />
@@ -1496,7 +1513,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             center={headerBadge}
             right={
               <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-                <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} /> Settings
+                <Settings style={{ height: 16, width: 16, color: theme.accent }} /> Settings
               </Button>
             }
           />
