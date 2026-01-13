@@ -289,8 +289,8 @@ const BRAND_LOGO_PATH = "/brand-mark.png";
 
 const MOCK = {
   jobsites: [
-    { major: 1201, name: "Nashville – Project A" },
-    { major: 1202, name: "Birmingham – Project B" },
+    { major: 23456, name: "23456 - BHM JS Tech II" },
+    { major: 9567, name: "09567 - Microsoft Data Center" },
   ],
   beaconAssets: [
     {
@@ -298,36 +298,36 @@ const MOCK = {
       displayName: "Access Point – C1234",
       assetType: "Access Point",
       assetTag: "C1234",
-      jobsiteMajor: 1201,
+      jobsiteMajor: 23456,
       locationHint: "IDF-2, Rack A",
-      beacon: { uuid: ORG_UUID, major: 1201, minor: 501 },
+      beacon: { uuid: ORG_UUID, major: 23456, minor: 501 },
     },
     {
       id: "a2",
       displayName: "Switch – C2388",
       assetType: "Switch",
       assetTag: "C2388",
-      jobsiteMajor: 1201,
+      jobsiteMajor: 23456,
       locationHint: "MDF, Rack B",
-      beacon: { uuid: ORG_UUID, major: 1201, minor: 502 },
+      beacon: { uuid: ORG_UUID, major: 23456, minor: 502 },
     },
     {
       id: "a3",
       displayName: "Cradlepoint – C9910",
       assetType: "Cradlepoint",
       assetTag: "C9910",
-      jobsiteMajor: 1202,
+      jobsiteMajor: 9567,
       locationHint: "Trailer, Network Cabinet",
-      beacon: { uuid: ORG_UUID, major: 1202, minor: 601 },
+      beacon: { uuid: ORG_UUID, major: 9567, minor: 601 },
     },
     {
       id: "a4",
       displayName: "Access Point – C4501",
       assetType: "Access Point",
       assetTag: "C4501",
-      jobsiteMajor: 1202,
+      jobsiteMajor: 9567,
       locationHint: "IDF-1, Rack C",
-      beacon: { uuid: ORG_UUID, major: 1202, minor: 602 },
+      beacon: { uuid: ORG_UUID, major: 9567, minor: 602 },
       simulate: false,
     },
     {
@@ -335,9 +335,9 @@ const MOCK = {
       displayName: "Switch – C4502",
       assetType: "Switch",
       assetTag: "C4502",
-      jobsiteMajor: 1202,
+      jobsiteMajor: 9567,
       locationHint: "MDF, Rack D",
-      beacon: { uuid: ORG_UUID, major: 1202, minor: 603 },
+      beacon: { uuid: ORG_UUID, major: 9567, minor: 603 },
       simulate: false,
     },
   ],
@@ -642,353 +642,16 @@ function useBackendOrMock() {
   const [beaconAssets, setBeaconAssets] = useState<any[]>([]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(`${API_BASE}/api/health`);
-        if (!r.ok) throw new Error("health not ok");
-        const j = await (await fetch(`${API_BASE}/api/jobsites`)).json();
-        const a = await (await fetch(`${API_BASE}/api/assets`)).json();
-        if (cancelled) return;
-        setJobsites(j.jobsites || []);
-        setBeaconAssets(a.assets || []);
-        setMode("backend");
-      } catch {
-        if (cancelled) return;
-        setJobsites(MOCK.jobsites);
-        setBeaconAssets(MOCK.beaconAssets);
-        setMode("mock");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { mode, jobsites, beaconAssets, setBeaconAssets };
-}
-
-// -----------------------------
-// Settings
-// -----------------------------
-
-function ThemeToggle({ themeKey, setThemeKey, theme }: any) {
-  const isDark = themeKey === "dark";
-  return (
-    <Button variant="secondary" onClick={() => setThemeKey(isDark ? "light" : "dark")} style={{ borderColor: theme.border, justifyContent: "flex-start", width: "100%" }}>
-      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      <span style={{ marginLeft: 6 }}>{isDark ? "Light theme" : "Dark theme"}</span>
-    </Button>
-  );
-}
-
-function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport, onClose, theme, themeKey, setThemeKey }: any) {
-  const panelBg = themeKey === "dark" ? "#2a2a2a" : "#f8f7f4";
-  const panelBorder = themeKey === "dark" ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.12)";
-
-  return (
-    <SurfaceCard theme={theme} style={{ width: "100%", maxWidth: 360, backgroundColor: panelBg, border: `1px solid ${panelBorder}`, boxShadow: "0 18px 50px rgba(0,0,0,0.22)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.2, color: theme.text }}>Settings</div>
-        <Button variant="secondary" onClick={onClose} style={{ borderColor: theme.border }}>
-          Close
-        </Button>
-      </div>
-
-      <Separator />
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontWeight: 900, fontSize: 13, color: theme.text }}>Appearance</div>
-        <ThemeToggle themeKey={themeKey} setThemeKey={setThemeKey} theme={theme} />
-      </div>
-
-      <Separator />
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontWeight: 900, fontSize: 13, color: theme.text }}>Import beacon assets (CSV)</div>
-        <Input type="file" accept=".csv,text/csv" onChange={(e: any) => setImportFile(e.target.files?.[0] || null)} />
-        <Button onClick={onImport} disabled={mode !== "backend"}>
-          Import
-        </Button>
-        {importResult ? <div style={{ fontSize: 13, color: theme.muted }}>{importResult.message}</div> : null}
-      </div>
-
-      <Separator />
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, color: theme.muted }}>
-        <div style={{ fontWeight: 900, color: theme.text }}>About</div>
-        <div>Virtual Toolbox</div>
-        <div>Beacon Finder UUID: {ORG_UUID}</div>
-      </div>
-    </SurfaceCard>
-  );
-}
-
-function SettingsModal(props: any) {
-  const { theme, themeKey, onClose } = props;
-  const overlayBg = themeKey === "dark" ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.18)";
-  return (
-    <ThemeVars theme={theme}>
-      <div
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-      style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: overlayBg, color: theme.text }}
-    >
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 390 }}>
-        <SettingsPanel {...props} />
-      </div>
-          </div>
-    </ThemeVars>
-  );
-}
-
-// -----------------------------
-// Toolbox Home
-// -----------------------------
-
-function TileButton({ icon, title, subtitle, onClick, theme }: any) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        width: "100%",
-        borderRadius: 18,
-        padding: 16,
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        boxShadow: "0 10px 26px rgba(0,0,0,0.10)",
-        textAlign: "left",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        boxSizing: "border-box",
-        overflow: "hidden",
-        maxWidth: "100%",
-        minWidth: 0,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <div
-          style={{
-            height: 44,
-            width: 44,
-            borderRadius: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "color-mix(in srgb, var(--accent) 16%, var(--surface))",
-            border: "1px solid color-mix(in srgb, var(--accent) 30%, var(--border))",
-          }}
-        >
-          {icon}
-        </div>
-        <div style={{ height: 8, width: 8, borderRadius: 999, background: "color-mix(in srgb, var(--accent) 75%, transparent)" }} />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-        <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: -0.2, color: theme.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {title}
-        </div>
-        <div style={{ fontSize: 13, color: theme.muted, lineHeight: 1.35 }}>{subtitle}</div>
-      </div>
-    </button>
-  );
-}
-
-function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettings, theme }: any) {
-  return (
-    <PhoneFrame
-      theme={theme}
-      bottomBar={
-        <BottomNav
-          theme={theme}
-          left={headerBadge}
-          center={<div />}
-          right={
-            <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} />
-              Settings
-            </Button>
-          }
-        />
-      }
-    >
-      <Header title="Virtual Toolbox" subtitle={""} leftGlyph={null} theme={theme} />
-
-      <SurfaceCard theme={theme} style={{ padding: 14 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 13, color: theme.muted }}>Choose a tool.</div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
-            <TileButton
-              theme={theme}
-              onClick={onOpenBeacon}
-              title="Beacon Finder"
-              subtitle="Find nearby assets and navigate by distance/trend."
-              icon={<Radar style={{ height: 20, width: 20, color: theme.accent }} />}
-            />
-            <TileButton
-              theme={theme}
-              onClick={onOpenDeployment}
-              title="Asset Deployment"
-              subtitle="Scan assets and attach them to tickets/status."
-              icon={<ScanLine style={{ height: 20, width: 20, color: theme.accent }} />}
-            />
-          </div>
-        </div>
-      </SurfaceCard>
-
-      <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.35 }}>
-        Prototype note: Beacon Finder simulates beacon ranging. Asset Deployment simulates barcode scans.
-      </div>
-    </PhoneFrame>
-  );
-}
-
-// -----------------------------
-// Beacon Home
-// -----------------------------
-
-function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, onEnter, onGoToolbox, onOpenSettings, theme }: any) {
-  return (
-    <PhoneFrame
-      theme={theme}
-      bottomBar={
-        <BottomNav
-          theme={theme}
-          left={
-            <Button variant="secondary" onClick={onGoToolbox} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <Home className="h-4 w-4" style={{ color: theme.accent }} />
-              Home
-            </Button>
-          }
-          center={headerBadge}
-          right={
-            <Button variant="secondary" onClick={onOpenSettings} style={{ borderColor: theme.border, padding: "10px 12px" }}>
-              <SettingsIcon style={{ height: 16, width: 16, color: theme.accent }} />
-              Settings
-            </Button>
-          }
-        />
-      }
-    >
-      <Header title="Beacon Finder" subtitle="Select a jobsite/project to find nearby assets." theme={theme} />
-
-      <SurfaceCard theme={theme}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 900 }}>Project / Jobsite</div>
-            <Select value={selectedMajor} onValueChange={setSelectedMajor}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a jobsite" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="" disabled>
-                  Select location
-                </SelectItem>
-                {jobsites.map((j: any) => (
-                  <SelectItem key={j.major} value={String(j.major)}>
-                    {j.name} (Major {j.major})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div style={{ fontSize: 12, color: theme.muted }}>You can import assets in Settings before entering a project.</div>
-          </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            <Button onClick={() => onEnter(selectedMajor)} disabled={!selectedMajor}>
-              Enter project
-            </Button>
-            <Button variant="secondary" onClick={() => onEnter("all")} style={{ borderColor: theme.border }}>
-              View all
-            </Button>
-          </div>
-        </div>
-      </SurfaceCard>
-    </PhoneFrame>
-  );
-}
-
-// -----------------------------
-// Beacon Finder – app
-// -----------------------------
-
-function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {rows.length === 0 ? (
-        <div style={{ fontSize: 13, color: theme.muted }}>No assets match the current filter.</div>
-      ) : (
-        rows.map((row: any) => {
-          const feet = ft(row.meters);
-          const st = stabilityLabel(row.madMeters);
-          const tr = trendLabel(row.deltaMeters);
-          const TrendIcon = tr.Icon;
-
-          return (
-            <SurfaceCard key={row.key} theme={theme}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0, flex: 1 }}>
-                  <div style={{ borderRadius: 16, padding: 10, border: `1px solid ${theme.border}`, flex: "0 0 auto" }}>
-                    <AvatarIcon assetType={row.asset.assetType} theme={theme} />
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                      <div style={{ fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
-                        {row.asset.displayName}
-                      </div>
-                      <Badge variant={st.variant}>{st.label}</Badge>
-                      {row.fresh ? <Badge>Live</Badge> : <Badge variant="secondary">Out of range</Badge>}
-                    </div>
-
-                    <div style={{ fontSize: 13, color: theme.muted, overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {jobsiteName(row.asset.jobsiteMajor)}{row.asset.locationHint ? ` • ${row.asset.locationHint}` : ""}
-                    </div>
-
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, fontSize: 13 }}>
-                      <div style={{ fontWeight: 800 }}>Distance: {feet == null ? "Unknown" : `${Math.round(feet)} ft`}</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, color: theme.muted }}>
-                        <TrendIcon className="h-4 w-4" style={{ color: theme.accent }} /> {tr.label}
-                      </div>
-                      <div style={{ color: theme.muted }}>Last seen: {row.age == null ? "Never" : `${formatAge(row.age)} ago`}</div>
-                    </div>
-
-                    <div style={{ fontSize: 12, color: theme.muted }}>
-                      Beacon: major {row.beacon.major} • minor {row.beacon.minor} • RSSI {row.rssi ?? "—"} dBm
-                    </div>
-                  </div>
-                </div>
-
-                <Button onClick={() => onFind(row)} style={{ flex: "0 0 auto", padding: "10px 12px" }}>
-                  <ArrowRight className="h-4 w-4" />
-                  Find
-                </Button>
-              </div>
-            </SurfaceCard>
-          );
-        })
-      )}
-    </div>
-  );
-}
-
-function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTargetKey, theme }: any) {
-  const [geoPos, setGeoPos] = useState<any>(null);
-  const [geoTarget, setGeoTarget] = useState<any>(null);
-  const [geoErr, setGeoErr] = useState<string | null>(null);
-  const [geoLastDist, setGeoLastDist] = useState<number | null>(null);
-  const [geoDelta, setGeoDelta] = useState<number | null>(null);
-
-  // Watch device location (best-effort). When we first get a fix, generate a
-  // random "asset location" within 150 ft (~45.7m) and keep it stable.
-  useEffect(() => {
     setGeoErr(null);
     setGeoPos(null);
     setGeoTarget(null);
     setGeoLastDist(null);
     setGeoDelta(null);
+
+    // If the selected asset is out of range/offline, don't show any simulated distance.
+    if (!selectedRow?.fresh) {
+      return;
+    }
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setGeoErr("Geolocation not available in this environment.");
@@ -1032,7 +695,7 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
         // ignore
       }
     };
-  }, [selectedRow?.key]);
+  }, [selectedRow?.key, selectedRow?.fresh]);
 
   const geoDist = useMemo(() => {
     const d = haversineMeters(geoPos, geoTarget);
@@ -1055,6 +718,7 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
   const GeoTrendIcon = geoTrend.Icon;
 
   const selectedFeet = selectedState ? ft(selectedState.emaMeters) : null;
+  const showUnknown = !selectedRow?.fresh;
   const st = stabilityLabel(selectedState?.madMeters ?? null);
   const tr = trendLabel(selectedState?.deltaMeters ?? null);
   const TrendIcon = tr.Icon;
@@ -1085,18 +749,36 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
         <div style={{ borderRadius: 18, padding: 16, border: `1px solid ${theme.border}` }}>
           <div style={{ fontSize: 12, color: theme.muted }}>Estimated distance (simulated location)</div>
           <div style={{ fontSize: 40, fontWeight: 900, letterSpacing: -0.8 }}>
-            {geoFeet == null ? (selectedFeet == null ? "—" : `${Math.round(selectedFeet)} ft`) : `${Math.round(geoFeet)} ft`}
+            {showUnknown ? "Distance unknown" : geoFeet == null ? (selectedFeet == null ? "—" : `${Math.round(selectedFeet)} ft`) : `${Math.round(geoFeet)} ft`}
           </div>
-          <div style={{ marginTop: 6, fontSize: 12, color: theme.muted, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <GeoTrendIcon className="h-4 w-4" style={{ color: theme.accent }} /> {geoTrend.label}
+          {showUnknown ? (
+            <div style={{ marginTop: 10, fontSize: 12, color: theme.muted }}>
+              Out of range/offline — no distance estimate available.
             </div>
-            <div>Accuracy: {geoPos?.acc ? `±${Math.round(geoPos.acc)}m` : "—"}</div>
-          </div>
-          {geoErr ? <div style={{ marginTop: 8, fontSize: 12, color: "#dc2626" }}>{geoErr}</div> : null}
-          <div style={{ marginTop: 6, fontSize: 12, color: theme.muted }}>
-            Target location is randomly generated within 150 ft of your first GPS fix for this Find session.
-          </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: theme.muted,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 10,
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <GeoTrendIcon className="h-4 w-4" style={{ color: theme.accent }} /> {geoTrend.label}
+                </div>
+                <div>Accuracy: {geoPos?.acc ? `±${Math.round(geoPos.acc)}m` : "—"}</div>
+              </div>
+              {geoErr ? <div style={{ marginTop: 8, fontSize: 12, color: "#dc2626" }}>{geoErr}</div> : null}
+              <div style={{ marginTop: 6, fontSize: 12, color: theme.muted }}>
+                Target location is randomly generated within 150 ft of your first GPS fix for this Find session.
+              </div>
+            </>
+          )}
           <div style={{ marginTop: 6, fontSize: 12, color: theme.muted }}>
             RSSI: {selectedState?.lastRssi ?? "—"} dBm • Updated {selectedState ? formatAge(nowMs() - selectedState.lastSeenMs) : "—"} ago
           </div>
@@ -1889,7 +1571,7 @@ export default function VirtualToolboxPrototype() {
   }, []);
 
   const [commMinor, setCommMinor] = useState("");
-  const [commMajor, setCommMajor] = useState("1201");
+  const [commMajor, setCommMajor] = useState("23456");
   const [commType, setCommType] = useState("Access Point");
   const [commTag, setCommTag] = useState("C1234");
 
