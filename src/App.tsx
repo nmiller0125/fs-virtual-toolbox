@@ -1480,148 +1480,149 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   }, [ticket, scanned, status, location, mode]);
 
   return (
-    <PhoneFrame theme={theme}>
-      <Header
-        title="Asset Deployment"
-        subtitle="Deploy assets by scanning barcodes and updating ticket, status, and location."
-        theme={theme}
-        right={
-          <div className="flex flex-col items-end gap-2 w-full">
-            <div className="self-end">{headerBadge}</div>
-            <Button variant="secondary" onClick={onHome} className="w-full justify-start" style={{ borderColor: theme.border }}>
-              <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={onOpenSettings}
-              title="Settings"
-              className="w-full justify-start"
-              style={{ borderColor: theme.border }}
-            >
-              <GearIcon theme={theme} />
-              <span className="ml-2">Settings</span>
-            </Button>
-          </div>
-        }
-      />
-
-      <SurfaceCard theme={theme}>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5" style={{ color: theme.accent }} />
-            <div className="font-semibold">Ticket</div>
-          </div>
-
-          <Input value={ticket} onChange={(e) => setTicket(e.target.value)} placeholder="e.g., INC-10001" />
-
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={lookupTicket} style={{ borderColor: theme.border }}>
-              Check ticket
-            </Button>
-          </div>
-
-          {lookupResult ? (
-            <div className={`text-sm ${lookupResult.ok ? "" : "text-destructive"}`} style={{ color: lookupResult.ok ? theme.text : undefined }}>
-              {lookupResult.message}
-            </div>
-          ) : null}
-
-          <div className="my-2" style={{ borderTop: `1px solid ${theme.border}` }} />
-
-          <div className="flex items-center gap-2">
-            <ScanLine className="h-5 w-5" style={{ color: theme.accent }} />
-            <div className="font-semibold">Scan assets</div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 13, color: theme.muted }}>
-              Use <span style={{ color: theme.text, fontWeight: 800 }}>Scan with camera</span> for real barcodes, or type one and press Add.
-            </div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <div style={{ flex: 1 }}>
-                <Input value={scanInput} onChange={(e: any) => setScanInput(e.target.value)} placeholder="Barcode" />
-              </div>
-              <Button onClick={addScan} variant="secondary" style={{ borderColor: theme.border }}>
-                <Package className="h-4 w-4" /> Add
+    <>
+      <PhoneFrame theme={theme}>
+        <Header
+          title="Asset Deployment"
+          subtitle="Deploy assets by scanning barcodes and updating ticket, status, and location."
+          theme={theme}
+          right={
+            <div className="flex flex-col items-end gap-2 w-full">
+              <div className="self-end">{headerBadge}</div>
+              <Button variant="secondary" onClick={onHome} className="w-full justify-start" style={{ borderColor: theme.border }}>
+                <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={onOpenSettings}
+                title="Settings"
+                className="w-full justify-start"
+                style={{ borderColor: theme.border }}
+              >
+                <GearIcon theme={theme} />
+                <span className="ml-2">Settings</span>
               </Button>
             </div>
-            <Button onClick={openCamera} style={{ justifyContent: "flex-start" }}>
-              <ScanLine className="h-4 w-4" style={{ color: theme.bg }} /> Scan with camera
-            </Button>
-          </div>
+          }
+        />
 
-          {scanned.length ? (
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Scanned ({scanned.length})</div>
+        <SurfaceCard theme={theme}>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-5 w-5" style={{ color: theme.accent }} />
+              <div className="font-semibold">Ticket</div>
+            </div>
+
+            <Input value={ticket} onChange={(e: any) => setTicket(e.target.value)} placeholder="e.g., INC-10001" />
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={lookupTicket} style={{ borderColor: theme.border }}>
+                Check ticket
+              </Button>
+            </div>
+
+            {lookupResult ? (
+              <div className={`text-sm ${lookupResult.ok ? "" : "text-destructive"}`} style={{ color: lookupResult.ok ? theme.text : undefined }}>
+                {lookupResult.message}
+              </div>
+            ) : null}
+
+            <div className="my-2" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+            <div className="flex items-center gap-2">
+              <ScanLine className="h-5 w-5" style={{ color: theme.accent }} />
+              <div className="font-semibold">Scan assets</div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 13, color: theme.muted }}>
+                Use <span style={{ color: theme.text, fontWeight: 800 }}>Scan with camera</span> for real barcodes, or type one and press Add.
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ flex: 1 }}>
+                  <Input value={scanInput} onChange={(e: any) => setScanInput(e.target.value)} placeholder="Barcode" />
+                </div>
+                <Button onClick={addScan} variant="secondary" style={{ borderColor: theme.border }}>
+                  <Package className="h-4 w-4" /> Add
+                </Button>
+              </div>
+              <Button onClick={openCamera} style={{ justifyContent: "flex-start" }}>
+                <ScanLine className="h-4 w-4" style={{ color: theme.bg }} /> Scan with camera
+              </Button>
+            </div>
+
+            {scanned.length ? (
               <div className="space-y-2">
-                {scanned.map((code) => (
-                  <div key={code} className="flex items-center justify-between rounded-xl px-3 py-2" style={{ border: `1px solid ${theme.border}` }}>
-                    <div className="font-medium">{code}</div>
-                    <Button variant="secondary" onClick={() => removeScan(code)} style={{ borderColor: theme.border }}>
-                      Remove
-                    </Button>
-                  </div>
-                ))}
+                <div className="text-sm font-medium">Scanned ({scanned.length})</div>
+                <div className="space-y-2">
+                  {scanned.map((code) => (
+                    <div key={code} className="flex items-center justify-between rounded-xl px-3 py-2" style={{ border: `1px solid ${theme.border}` }}>
+                      <div className="font-medium">{code}</div>
+                      <Button variant="secondary" onClick={() => removeScan(code)} style={{ borderColor: theme.border }}>
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm" style={{ color: theme.muted }}>
+                No scanned assets yet.
+              </div>
+            )}
+
+            <div className="my-2" style={{ borderTop: `1px solid ${theme.border}` }} />
+
+            <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Set status</div>
+                <Select value={status} onValueChange={setStatus as any}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Set location</div>
+                <Select value={location} onValueChange={setLocation as any}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LOCATION_OPTIONS.map((l) => (
+                      <SelectItem key={l} value={l}>
+                        {l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          ) : (
-            <div className="text-sm" style={{ color: theme.muted }}>
-              No scanned assets yet.
-            </div>
-          )}
 
-          <div className="my-2" style={{ borderTop: `1px solid ${theme.border}` }} />
-
-          <div className="grid grid-cols-1 gap-3">
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Set status</div>
-              <Select value={status} onValueChange={setStatus as any}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <Button onClick={submit}>Submit</Button>
+              <Badge variant="secondary">Will attach assets to ticket if missing</Badge>
             </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Set location</div>
-              <Select value={location} onValueChange={setLocation as any}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LOCATION_OPTIONS.map((l) => (
-                    <SelectItem key={l} value={l}>
-                      {l}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {submitResult ? (
+              <div className={`text-sm ${submitResult.ok ? "" : "text-destructive"}`} style={{ color: submitResult.ok ? theme.text : undefined }}>
+                {submitResult.message}
+              </div>
+            ) : null}
+
+            <div className="text-xs" style={{ color: theme.muted }}>
+              Backend note: the real implementation would validate the ticket in your ticketing system and then update asset records.
             </div>
           </div>
-
-          <div className="flex flex-wrap gap-2 mt-2">
-            <Button onClick={submit}>Submit</Button>
-            <Badge variant="secondary">Will attach assets to ticket if missing</Badge>
-          </div>
-
-          {submitResult ? (
-            <div className={`text-sm ${submitResult.ok ? "" : "text-destructive"}`} style={{ color: submitResult.ok ? theme.text : undefined }}>
-              {submitResult.message}
-            </div>
-          ) : null}
-
-          <div className="text-xs" style={{ color: theme.muted }}>
-            Backend note: the real implementation would validate the ticket in your ticketing system and then update asset records.
-          </div>
-        </div>
-      </SurfaceCard>
+        </SurfaceCard>
       </PhoneFrame>
 
       {cameraOpen ? (
