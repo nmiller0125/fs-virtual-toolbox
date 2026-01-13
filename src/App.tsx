@@ -281,7 +281,11 @@ const THEMES = {
   },
 };
 
-// Optional logo data URI. Leave empty to use fallback "FS" mark.
+// Brand mark image. Place the provided logo at: /public/brand-mark.png
+// (Vite serves it at /brand-mark.png)
+const BRAND_LOGO_PATH = "/brand-mark.png";
+
+// Optional legacy logo data URI. Leave empty to use brand mark above.
 const BG_LOGO_DATA_URI = "";
 
 const MOCK = {
@@ -486,45 +490,65 @@ function PhoneFrame({ children, theme }: any) {
   );
 }
 
-function Header({ title, subtitle, right, theme }: any) {
+function Header({ title, subtitle, right, theme, leftGlyph }: any) {
+  // Light-mode detection (keeps logic local—no need to pass themeKey everywhere)
+  const isLight = String(theme?.bg || "").toLowerCase() === "#ffffff";
+
   return (
     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {BG_LOGO_DATA_URI ? (
-            <img src={BG_LOGO_DATA_URI} alt="Logo" style={{ height: 28, width: 28, borderRadius: 10 }} />
-          ) : (
+          <img
+            src={BG_LOGO_DATA_URI || BRAND_LOGO_PATH}
+            alt="Brand"
+            style={{
+              height: 28,
+              width: 28,
+              borderRadius: 10,
+              objectFit: "contain",
+              // Requested: logo black in light mode
+              filter: isLight ? "invert(1)" : "invert(0)",
+              opacity: 0.92,
+              flex: "0 0 auto",
+            }}
+          />
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            {leftGlyph === null ? null : leftGlyph ? (
+              <span style={{ display: "inline-flex", flex: "0 0 auto" }}>{leftGlyph}</span>
+            ) : (
+              <Radar style={{ height: 20, width: 20, color: theme.accent, flex: "0 0 auto" }} />
+            )}
             <div
               style={{
-                height: 28,
-                width: 28,
-                borderRadius: 10,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 800,
-                fontSize: 12,
-                backgroundColor: theme.accent,
-                color: theme.bg,
+                fontSize: 20,
+                fontWeight: 900,
+                letterSpacing: -0.3,
+                color: theme.text,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}
             >
-              FS
-            </div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            <Radar style={{ height: 20, width: 20, color: theme.accent, flex: "0 0 auto" }} />
-            <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.2, color: theme.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {title}
             </div>
           </div>
         </div>
-        {subtitle ? (
-          <div style={{ fontSize: 13, lineHeight: 1.35, color: theme.muted }}>
-            {subtitle}
-          </div>
-        ) : null}
+
+        {subtitle ? <div style={{ fontSize: 13, lineHeight: 1.35, color: theme.muted }}>{subtitle}</div> : null}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, minWidth: 0, flex: "0 1 170px", maxWidth: "45%" }}>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "stretch",
+          gap: 10,
+          minWidth: 0,
+          flex: "0 1 170px",
+          maxWidth: "45%",
+        }}
+      >
         {right}
       </div>
     </div>
@@ -735,8 +759,9 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
     <>
       <PhoneFrame theme={theme}>
         <Header
-          title="Field Services"
-          subtitle="Virtual Toolbox"
+          title="Virtual Toolbox"
+          subtitle={null}
+          leftGlyph={null}
           theme={theme}
           right={
             <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%" }}>
