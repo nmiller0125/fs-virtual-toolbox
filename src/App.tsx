@@ -509,12 +509,13 @@ function PhoneFrame({ children, bottomBar, theme }: any) {
             overflowY: "auto",
             overflowX: "hidden",
             WebkitOverflowScrolling: "touch",
-            overscrollBehavior: "contain",
             padding: 16,
             display: "flex",
             flexDirection: "column",
             gap: 14,
             minWidth: 0,
+            // iOS/Safari scroll reliability
+            touchAction: "pan-y",
           }}
         >
           {children}
