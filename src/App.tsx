@@ -648,8 +648,8 @@ function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport
 
 function SettingsModal(props: any) {
   const { theme, themeKey, onClose } = props;
-  // Lighter overlay in light mode; slightly lighter than before in dark mode
-  const overlayBg = themeKey === "dark" ? "rgba(0,0,0,0.38)" : "rgba(2, 6, 23, 0.20)";
+  // Flat, light overlay (no glass effect)
+  const overlayBg = themeKey === "dark" ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.18)";
   return (
     <div
       role="dialog"
@@ -664,15 +664,10 @@ function SettingsModal(props: any) {
         justifyContent: "center",
         padding: 16,
         background: overlayBg,
-        backdropFilter: "blur(6px)",
       }}
     >
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 390 }}>
         <SettingsPanel {...props} />
-        <div style={{ height: 10 }} />
-        <div style={{ fontSize: 12, color: themeKey === "dark" ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.55)", textAlign: "center" }}>
-          Tap outside to close
-        </div>
       </div>
     </div>
   );
@@ -1489,7 +1484,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
           right={
             <div className="flex flex-col items-end gap-2 w-full">
               <div className="self-end">{headerBadge}</div>
-              <Button variant="secondary" onClick={onHome} className="w-full justify-start" style={{ borderColor: theme.border }}>
+              <Button variant="secondary" on/pClick={onHome} className="w-full justify-start" style={{ borderColor: theme.border }}>
                 <Home className="h-4 w-4 mr-2" style={{ color: theme.accent }} /> Home
               </Button>
               <Button
