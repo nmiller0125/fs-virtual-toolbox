@@ -745,7 +745,6 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
 
 // -----------------------------
 // Beacon Finder – Home (project select)
- (project select)
 // -----------------------------
 
 function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, onEnter, onGoToolbox, onOpenSettings, theme }: any) {
