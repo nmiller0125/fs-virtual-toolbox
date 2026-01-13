@@ -608,38 +608,68 @@ function useBackendOrMock() {
 
 function SettingsPanel({ mode, importFile, setImportFile, importResult, onImport, onClose, theme, themeKey, setThemeKey }: any) {
   return (
-    <SurfaceCard theme={theme}>
-      <div className="flex items-center justify-between">
-        <div className="text-lg font-semibold">Settings</div>
+    <SurfaceCard theme={theme} style={{ width: "100%", maxWidth: 360 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.2 }}>Settings</div>
         <Button variant="secondary" onClick={onClose} style={{ borderColor: theme.border }}>
           Close
         </Button>
       </div>
 
-      <div className="my-4" style={{ borderTop: `1px solid ${theme.border}` }} />
+      <Separator />
 
-      <div className="space-y-2">
-        <div className="font-semibold">Appearance</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontWeight: 800, fontSize: 13 }}>Appearance</div>
         <ThemeToggle themeKey={themeKey} setThemeKey={setThemeKey} theme={theme} />
       </div>
 
-      <div className="my-4" style={{ borderTop: `1px solid ${theme.border}` }} />
+      <Separator />
 
-      <div className="space-y-2">
-        <div className="font-semibold">Import beacon assets (CSV)</div>
-        <Input type="file" accept=".csv,text/csv" onChange={(e) => setImportFile(e.target.files?.[0] || null)} />
-        <Button onClick={onImport} disabled={mode !== "backend"}>Import</Button>
-        {importResult ? <div className="text-sm">{importResult.message}</div> : null}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontWeight: 800, fontSize: 13 }}>Import beacon assets (CSV)</div>
+        <Input type="file" accept=".csv,text/csv" onChange={(e: any) => setImportFile(e.target.files?.[0] || null)} />
+        <Button onClick={onImport} disabled={mode !== "backend"}>
+          Import
+        </Button>
+        {importResult ? <div style={{ fontSize: 13, color: theme.muted }}>{importResult.message}</div> : null}
       </div>
 
-      <div className="my-4" style={{ borderTop: `1px solid ${theme.border}` }} />
+      <Separator />
 
-      <div className="space-y-2 text-sm" style={{ color: theme.muted }}>
-        <div className="font-semibold" style={{ color: theme.text }}>About</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12, color: theme.muted }}>
+        <div style={{ fontWeight: 800, color: theme.text }}>About</div>
         <div>Field Services – Virtual Toolbox</div>
         <div>Beacon Finder UUID: {ORG_UUID}</div>
       </div>
     </SurfaceCard>
+  );
+}
+
+function SettingsModal(props: any) {
+  const { theme, onClose } = props;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+        background: "rgba(0,0,0,0.45)",
+        backdropFilter: "blur(6px)",
+      }}
+    >
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 390 }}>
+        <SettingsPanel {...props} />
+        <div style={{ height: 10 }} />
+        <div style={{ fontSize: 12, color: theme.muted, textAlign: "center" }}>Tap outside to close</div>
+      </div>
+    </div>
   );
 }
 
@@ -693,7 +723,8 @@ function TileButton({ icon, title, subtitle, onClick, theme }: any) {
 
 function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettings, theme }: any) {
   return (
-    <PhoneFrame theme={theme}>
+    <>
+      <PhoneFrame theme={theme}>
       <Header
         title="Field Services"
         subtitle="Virtual Toolbox"
@@ -1229,6 +1260,130 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const [lookupResult, setLookupResult] = useState<any>(null);
   const [submitResult, setSubmitResult] = useState<any>(null);
 
+  // Camera scanning (best-effort; uses BarcodeDetector when available)
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const stopCamera = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      try {
+        (videoRef.current as any).srcObject = null;
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
+  const openCamera = useCallback(async () => {
+    setCameraError(null);
+    if (typeof window === "undefined") {
+      setCameraError("Camera is not available in this environment.");
+      return;
+    }
+    if (!(navigator as any).mediaDevices?.getUserMedia) {
+      setCameraError("Camera API not supported in this browser.");
+      return;
+    }
+    setCameraOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!cameraOpen) {
+      stopCamera();
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          (videoRef.current as any).srcObject = stream;
+          await videoRef.current.play();
+        }
+
+        const hasDetector = typeof (window as any).BarcodeDetector !== "undefined";
+        if (!hasDetector) {
+          setCameraError(
+            "BarcodeDetector is not available in this browser. Use manual entry, or try Chrome on Android. (iOS support varies by version.)"
+          );
+          return;
+        }
+
+        const formats = [
+          "qr_code",
+          "code_128",
+          "code_39",
+          "code_93",
+          "ean_13",
+          "ean_8",
+          "upc_a",
+          "upc_e",
+          "itf",
+          "pdf417",
+          "data_matrix",
+        ];
+        const detector = new (window as any).BarcodeDetector({ formats });
+
+        const tick = async () => {
+          if (cancelled) return;
+          const v = videoRef.current;
+          if (!v) return;
+          try {
+            const barcodes = await detector.detect(v);
+            if (barcodes?.length) {
+              const raw = (barcodes[0].rawValue || "").trim();
+              if (raw) {
+                setScanned((prev) => (prev.includes(raw) ? prev : [raw, ...prev]));
+                setScanInput("");
+                setCameraOpen(false);
+                return;
+              }
+            }
+          } catch {
+            // ignore transient errors
+          }
+          rafRef.current = requestAnimationFrame(tick);
+        };
+
+        rafRef.current = requestAnimationFrame(tick);
+      } catch (e: any) {
+        setCameraError(e?.message || "Unable to access camera (permission denied?).");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  }, [cameraOpen, stopCamera]);
+  const [ticket, setTicket] = useState("SR-20498");
+  const [scanInput, setScanInput] = useState("");
+  const [scanned, setScanned] = useState<string[]>([]);
+  const [status, setStatus] = useState<Status>("In Use");
+  const [location, setLocation] = useState<LocationOpt>("Jobsite Location");
+  const [lookupResult, setLookupResult] = useState<any>(null);
+  const [submitResult, setSubmitResult] = useState<any>(null);
+
   const addScan = useCallback(() => {
     const v = scanInput.trim();
     if (!v) return;
@@ -1374,16 +1529,21 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             <div className="font-semibold">Scan assets</div>
           </div>
 
-          <div className="space-y-2">
-            <div className="text-sm" style={{ color: theme.muted }}>
-              Prototype: type a barcode (e.g., C1234) and press Add.
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 13, color: theme.muted }}>
+              Use <span style={{ color: theme.text, fontWeight: 800 }}>Scan with camera</span> for real barcodes, or type one and press Add.
             </div>
-            <div className="flex gap-2">
-              <Input value={scanInput} onChange={(e) => setScanInput(e.target.value)} placeholder="Barcode" />
-              <Button onClick={addScan}>
-                <Package className="h-4 w-4 mr-2" /> Add
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <Input value={scanInput} onChange={(e: any) => setScanInput(e.target.value)} placeholder="Barcode" />
+              </div>
+              <Button onClick={addScan} variant="secondary" style={{ borderColor: theme.border }}>
+                <Package className="h-4 w-4" /> Add
               </Button>
             </div>
+            <Button onClick={openCamera} style={{ justifyContent: "flex-start" }}>
+              <ScanLine className="h-4 w-4" style={{ color: theme.bg }} /> Scan with camera
+            </Button>
           </div>
 
           {scanned.length ? (
@@ -1457,8 +1617,53 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             Backend note: the real implementation would validate the ticket in your ticketing system and then update asset records.
           </div>
         </div>
-      </SurfaceCard>
-    </PhoneFrame>
+      </SurfaceCard>      </PhoneFrame>
+
+      {cameraOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setCameraOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9998,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 390 }}>
+            <SurfaceCard theme={theme} style={{ padding: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontWeight: 800 }}>Scan barcode</div>
+                <Button variant="secondary" onClick={() => setCameraOpen(false)} style={{ borderColor: theme.border }}>
+                  Close
+                </Button>
+              </div>
+              <div style={{ fontSize: 12, color: theme.muted, marginTop: 8 }}>
+                Point the camera at the barcode. The first detected code will be added.
+              </div>
+
+              <div style={{ marginTop: 12, borderRadius: 16, overflow: "hidden", border: `1px solid ${theme.border}` }}>
+                <video ref={videoRef} playsInline muted style={{ width: "100%", height: 360, objectFit: "cover", background: "#000" }} />
+              </div>
+
+              {cameraError ? (
+                <div style={{ marginTop: 10, fontSize: 13, color: theme.muted }}>{cameraError}</div>
+              ) : (
+                <div style={{ marginTop: 10, fontSize: 13, color: theme.muted }}>
+                  If nothing scans, try more light and move closer/farther.
+                </div>
+              )}
+            </SurfaceCard>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -1746,7 +1951,24 @@ export default function VirtualToolboxPrototype() {
   const selectedState = selectedRow ? ranged.get(selectedRow.key) : null;
 
   const settingsPanel = settingsOpen ? (
-    <SettingsPanel
+    <SettingsModal
+      mode={mode}
+      importFile={importFile}
+      setImportFile={setImportFile}
+      importResult={importResult}
+      onImport={importBeaconAssetsCsv}
+      onClose={() => setSettingsOpen(false)}
+      theme={theme}
+      themeKey={themeKey}
+      setThemeKey={setThemeKey}
+    />
+  ) : null;
+
+  // Render
+  if (route === "toolbox") {
+    return (
+      <>
+        <ToolboxHome
       mode={mode}
       importFile={importFile}
       setImportFile={setImportFile}
