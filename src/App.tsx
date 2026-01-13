@@ -36,15 +36,52 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       return (
         <div style={{ padding: 16, fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" }}>
           <div style={{ fontWeight: 900, marginBottom: 8 }}>Something went wrong</div>
-          <div style={{ fontSize: 12, opacity: 0.8, whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 12, opacity: 0.9, whiteSpace: "pre-wrap" }}>
             {String(this.state.error?.message || this.state.error || "Unknown error")}
           </div>
-          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.8 }}>Refresh the page after redeploying.</div>
+          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.8 }}>If this persists, hard refresh the page.</div>
         </div>
       );
     }
     return this.props.children as any;
   }
+}
+
+// Provides CSS variables for inline styles that reference var(--accent), etc.
+function ThemeVars({ theme, children }: any) {
+  return (
+    <div
+      style={{
+        // @ts-ignore
+        "--accent": theme.accent,
+        // @ts-ignore
+        "--surface": theme.surface,
+        // @ts-ignore
+        "--border": theme.border,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Minimal global styles to avoid iOS scroll locking and ensure selects/buttons inherit theme.
+function GlobalStyles({ themeKey, theme }: any) {
+  const isDark = themeKey === "dark";
+  return (
+    <style>
+      {`
+        :root { color-scheme: ${isDark ? "dark" : "light"}; }
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body { background: ${theme.bg}; color: ${theme.text}; overflow: hidden; }
+        * { box-sizing: border-box; }
+        select, input, button { font: inherit; }
+        select { color: ${theme.text}; background: transparent; }
+        option { color: ${isDark ? "#000" : "#000"}; }
+        .settings-font { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+      `}
+    </style>
+  );
 }
 
 function SettingsModal({ mode, importFile, setImportFile, importResult, onImport, onClose, theme, themeKey, setThemeKey }: any) {
