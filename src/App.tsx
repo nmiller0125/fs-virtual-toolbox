@@ -883,6 +883,9 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
                 <SelectValue placeholder="Choose a jobsite" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="" disabled>
+                  Select location
+                </SelectItem>
                 {jobsites.map((j: any) => (
                   <SelectItem key={j.major} value={String(j.major)}>
                     {j.name} (Major {j.major})
@@ -973,13 +976,20 @@ function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
 
 function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTargetKey, theme }: any) {
   const [geoPos, setGeoPos] = useState<any>(null);
-  const [geoPin, setGeoPin] = useState<any>(null);
+  const [geoTarget, setGeoTarget] = useState<any>(null);
   const [geoErr, setGeoErr] = useState<string | null>(null);
   const [geoLastDist, setGeoLastDist] = useState<number | null>(null);
   const [geoDelta, setGeoDelta] = useState<number | null>(null);
 
+  // Watch device location (best-effort). When we first get a fix, generate a
+  // random "asset location" within 150 ft (~45.7m) and keep it stable.
   useEffect(() => {
     setGeoErr(null);
+    setGeoPos(null);
+    setGeoTarget(null);
+    setGeoLastDist(null);
+    setGeoDelta(null);
+
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setGeoErr("Geolocation not available in this environment.");
       return;
@@ -987,8 +997,27 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
 
     const watchId = navigator.geolocation.watchPosition(
       (p) => {
-        setGeoPos({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, ts: p.timestamp });
+        const next = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, ts: p.timestamp };
+        setGeoPos(next);
         setGeoErr(null);
+
+        // Create the randomized target once per Find session.
+        setGeoTarget((prev: any) => {
+          if (prev) return prev;
+          // Random point within 150 ft of the first fix.
+          const maxMeters = 45.72;
+          const R = 6371000;
+          const bearing = Math.random() * Math.PI * 2;
+          const dist = Math.random() * maxMeters;
+
+          const lat1 = (next.lat * Math.PI) / 180;
+          const lon1 = (next.lon * Math.PI) / 180;
+
+          const lat2 = Math.asin(Math.sin(lat1) * Math.cos(dist / R) + Math.cos(lat1) * Math.sin(dist / R) * Math.cos(bearing));
+          const lon2 = lon1 + Math.atan2(Math.sin(bearing) * Math.sin(dist / R) * Math.cos(lat1), Math.cos(dist / R) - Math.sin(lat1) * Math.sin(lat2));
+
+          return { lat: (lat2 * 180) / Math.PI, lon: (lon2 * 180) / Math.PI, ts: nowMs() };
+        });
       },
       (e) => {
         setGeoErr(e?.message || "Location permission denied or unavailable.");
@@ -1006,11 +1035,10 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
   }, [selectedRow?.key]);
 
   const geoDist = useMemo(() => {
-    const d = haversineMeters(geoPos, geoPin);
+    const d = haversineMeters(geoPos, geoTarget);
     if (d == null) return null;
-    if (geoLastDist == null) return d;
     return d;
-  }, [geoPos, geoPin, geoLastDist]);
+  }, [geoPos, geoTarget]);
 
   useEffect(() => {
     if (geoDist == null) return;
@@ -1022,19 +1050,6 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
     setGeoDelta(geoDist - geoLastDist);
     setGeoLastDist(geoDist);
   }, [geoDist]);
-
-  const pinHere = useCallback(() => {
-    if (!geoPos) return;
-    setGeoPin({ lat: geoPos.lat, lon: geoPos.lon, ts: nowMs() });
-    setGeoLastDist(null);
-    setGeoDelta(null);
-  }, [geoPos]);
-
-  const clearPin = useCallback(() => {
-    setGeoPin(null);
-    setGeoLastDist(null);
-    setGeoDelta(null);
-  }, []);
 
   const geoTrend = trendLabel(geoDelta);
   const GeoTrendIcon = geoTrend.Icon;
@@ -1068,41 +1083,23 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
         </div>
 
         <div style={{ borderRadius: 18, padding: 16, border: `1px solid ${theme.border}` }}>
-          <div style={{ fontSize: 12, color: theme.muted }}>Estimated distance (simulated beacon)</div>
-          <div style={{ fontSize: 40, fontWeight: 900, letterSpacing: -0.8 }}>{selectedFeet == null ? "—" : `${Math.round(selectedFeet)} ft`}</div>
+          <div style={{ fontSize: 12, color: theme.muted }}>Estimated distance (simulated location)</div>
+          <div style={{ fontSize: 40, fontWeight: 900, letterSpacing: -0.8 }}>
+            {geoFeet == null ? (selectedFeet == null ? "—" : `${Math.round(selectedFeet)} ft`) : `${Math.round(geoFeet)} ft`}
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, color: theme.muted, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <GeoTrendIcon className="h-4 w-4" style={{ color: theme.accent }} /> {geoTrend.label}
+            </div>
+            <div>Accuracy: {geoPos?.acc ? `±${Math.round(geoPos.acc)}m` : "—"}</div>
+          </div>
+          {geoErr ? <div style={{ marginTop: 8, fontSize: 12, color: "#dc2626" }}>{geoErr}</div> : null}
+          <div style={{ marginTop: 6, fontSize: 12, color: theme.muted }}>
+            Target location is randomly generated within 150 ft of your first GPS fix for this Find session.
+          </div>
           <div style={{ marginTop: 6, fontSize: 12, color: theme.muted }}>
             RSSI: {selectedState?.lastRssi ?? "—"} dBm • Updated {selectedState ? formatAge(nowMs() - selectedState.lastSeenMs) : "—"} ago
           </div>
-        </div>
-
-        <div style={{ borderRadius: 18, padding: 14, background: theme.surface, border: `1px solid ${theme.border}` }}>
-          <div style={{ fontWeight: 900 }}>Geo-pin emulation (no beacons)</div>
-          <div style={{ fontSize: 13, marginTop: 6, color: theme.muted }}>
-            Stand where the asset is supposed to be, tap <span style={{ color: theme.text, fontWeight: 900 }}>Pin here</span>, then walk.
-          </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
-            <Button onClick={pinHere} disabled={!geoPos}>
-              <MapPin className="h-4 w-4" style={{ color: theme.bg }} /> Pin here
-            </Button>
-            <Button variant="secondary" onClick={clearPin} disabled={!geoPin} style={{ borderColor: theme.border }}>
-              Clear pin
-            </Button>
-          </div>
-
-          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: theme.muted }}>
-            <div>Current: {geoPos ? `${geoPos.lat.toFixed(5)}, ${geoPos.lon.toFixed(5)} (±${Math.round(geoPos.acc || 0)}m)` : "—"}</div>
-            <div>Pin: {geoPin ? `${geoPin.lat.toFixed(5)}, ${geoPin.lon.toFixed(5)}` : "—"}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ fontWeight: 900, color: theme.text }}>Distance: {geoFeet == null ? "—" : `${Math.round(geoFeet)} ft`}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <GeoTrendIcon className="h-4 w-4" style={{ color: theme.accent }} /> {geoTrend.label}
-              </div>
-            </div>
-            {geoErr ? <div style={{ color: "#dc2626" }}>{geoErr}</div> : null}
-          </div>
-
-          <div style={{ marginTop: 8, fontSize: 12, color: theme.muted }}>Note: GPS is coarse indoors; demo-grade until iBeacon is enabled.</div>
         </div>
 
         <div style={{ borderRadius: 18, padding: 14, background: theme.surface, border: `1px solid ${theme.border}` }}>
