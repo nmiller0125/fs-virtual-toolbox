@@ -721,56 +721,8 @@ function TileButton({ icon, title, subtitle, onClick, theme }: any) {
   );
 }
 
-function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettings, theme }: any) {
-  return (
-    <>
-      <PhoneFrame theme={theme}>
-      <Header
-        title="Field Services"
-        subtitle="Virtual Toolbox"
-        theme={theme}
-        right={
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10, width: "100%" }}>
-            <div style={{ alignSelf: "flex-end" }}>{headerBadge}</div>
-            <Button
-              variant="secondary"
-              onClick={onOpenSettings}
-              title="Settings"
-              style={{ borderColor: theme.border, justifyContent: "flex-start" }}
-            >
-              <GearIcon theme={theme} />
-              <span style={{ marginLeft: 6 }}>Settings</span>
-            </Button>
-          </div>
-        }
-      />
-
-      <SurfaceCard theme={theme} style={{ padding: 14 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 13, color: theme.muted }}>Choose a tool.</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <TileButton
-              theme={theme}
-              onClick={onOpenBeacon}
-              title="Beacon Finder"
-              subtitle="Find nearby assets and navigate by distance/trend."
-              icon={<Radar style={{ height: 20, width: 20, color: theme.accent }} />}
-            />
-            <TileButton
-              theme={theme}
-              onClick={onOpenDeployment}
-              title="Asset Deployment"
-              subtitle="Scan assets and attach them to tickets/status."
-              icon={<ScanLine style={{ height: 20, width: 20, color: theme.accent }} />}
-            />
-          </div>
-        </div>
-      </SurfaceCard>
-
-      <div style={{ fontSize: 12, color: theme.muted, lineHeight: 1.35 }}>
-        Prototype note: Beacon Finder simulates beacon ranging. Asset Deployment simulates barcode scans.
-      </div>
-    </PhoneFrame>
+$1
+    </>
   );
 }
 
@@ -780,7 +732,8 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
 
 function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, onEnter, onGoToolbox, onOpenSettings, theme }: any) {
   return (
-    <PhoneFrame theme={theme}>
+    <>
+      <PhoneFrame theme={theme}>
       <Header
         title="Beacon Finder"
         subtitle="Select a jobsite/project to find nearby assets."
@@ -1610,7 +1563,8 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             Backend note: the real implementation would validate the ticket in your ticketing system and then update asset records.
           </div>
         </div>
-      </SurfaceCard>      </PhoneFrame>
+      </SurfaceCard>
+      </PhoneFrame>
 
       {cameraOpen ? (
         <div
