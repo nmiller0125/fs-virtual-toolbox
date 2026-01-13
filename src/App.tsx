@@ -474,6 +474,9 @@ function ThemeVars({ theme, children }: any) {
 }
 
 function PhoneFrame({ children, bottomBar, theme }: any) {
+  // iOS Safari scrolling reliability:
+  // - Give the "phone" an explicit height (aspect-ratio alone can yield non-scrollable flex children on iOS)
+  // - Keep the content area as the only scroll container
   return (
     <div
       style={{
@@ -490,9 +493,9 @@ function PhoneFrame({ children, bottomBar, theme }: any) {
     >
       <div
         style={{
-          width: "100%",
-          maxWidth: 390,
-          aspectRatio: "9 / 16",
+          // Explicit sizing to preserve 9:16 while keeping a real height for iOS scroll.
+          height: "min(calc(100vh - 32px), 760px)",
+          width: "min(calc((100vh - 32px) * 9 / 16), 390px)",
           borderRadius: 36,
           overflow: "hidden",
           display: "flex",
@@ -521,7 +524,11 @@ function PhoneFrame({ children, bottomBar, theme }: any) {
           {children}
         </div>
 
-        {bottomBar ? <div style={{ padding: "12px 12px", borderTop: `1px solid ${theme.border}`, background: theme.bg }}>{bottomBar}</div> : null}
+        {bottomBar ? (
+          <div style={{ padding: "12px 12px", borderTop: `1px solid ${theme.border}`, background: theme.bg, flex: "0 0 auto" }}>
+            {bottomBar}
+          </div>
+        ) : null}
       </div>
     </div>
   );
