@@ -1,3 +1,4 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownRight,
   ArrowRight,
@@ -17,6 +18,162 @@ import {
   Wifi,
 } from "lucide-react";
 
+// -------------------------------------------------
+// Simple local UI components (Option A)
+// -------------------------------------------------
+
+type BtnVariant = "default" | "secondary" | "destructive";
+
+function Button({ children, onClick, disabled, variant = "default", style, className, title, type }: any) {
+  const base: React.CSSProperties = {
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(0,0,0,0.12)",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.6 : 1,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    userSelect: "none",
+    background: "transparent",
+  };
+
+  const variants: Record<BtnVariant, React.CSSProperties> = {
+    default: { background: "rgba(0,0,0,0.08)" },
+    secondary: { background: "transparent" },
+    destructive: { background: "rgba(220, 38, 38, 0.15)", border: "1px solid rgba(220, 38, 38, 0.4)" },
+  };
+
+  return (
+    <button
+      title={title}
+      type={type ?? "button"}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={className}
+      style={{ ...base, ...variants[variant], ...style }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Input({ value, onChange, placeholder, type = "text", accept, className, style }: any) {
+  return (
+    <input
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      type={type}
+      accept={accept}
+      className={className}
+      style={{
+        width: "100%",
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: "1px solid rgba(0,0,0,0.18)",
+        background: "transparent",
+        outline: "none",
+        ...style,
+      }}
+    />
+  );
+}
+
+function Badge({ children, variant = "default", className, style }: any) {
+  const styles: Record<string, React.CSSProperties> = {
+    default: { background: "rgba(0,0,0,0.10)" },
+    secondary: { background: "rgba(0,0,0,0.06)" },
+    destructive: { background: "rgba(220, 38, 38, 0.15)", border: "1px solid rgba(220, 38, 38, 0.35)" },
+  };
+  return (
+    <span
+      className={className}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "3px 8px",
+        borderRadius: 999,
+        fontSize: 12,
+        border: "1px solid rgba(0,0,0,0.12)",
+        ...styles[variant] ?? styles.default,
+        ...style,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Separator({ style }: any) {
+  return <div style={{ width: "100%", height: 1, background: "rgba(0,0,0,0.12)", margin: "10px 0", ...style }} />;
+}
+
+// Tabs (minimal)
+const TabsCtx = React.createContext<{ value: string; onValueChange: (v: string) => void } | null>(null);
+
+function Tabs({ value, onValueChange, children }: any) {
+  return <TabsCtx.Provider value={{ value, onValueChange }}><div>{children}</div></TabsCtx.Provider>;
+}
+
+function TabsList({ children }: any) {
+  return <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{children}</div>;
+}
+
+function TabsTrigger({ children, value, disabled }: any) {
+  const ctx = React.useContext(TabsCtx);
+  const active = ctx?.value === value;
+  return (
+    <Button
+      variant={active ? "default" : "secondary"}
+      disabled={disabled}
+      onClick={() => ctx?.onValueChange(value)}
+      style={{ borderRadius: 999 }}
+    >
+      {children}
+    </Button>
+  );
+}
+
+// Select (native; supports existing JSX shape)
+function Select({ value, onValueChange, children }: any) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onValueChange(e.target.value)}
+      style={{
+        width: "100%",
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: "1px solid rgba(0,0,0,0.18)",
+        background: "transparent",
+        outline: "none",
+      }}
+    >
+      {children}
+    </select>
+  );
+}
+
+function SelectTrigger({ children }: any) {
+  return <>{children}</>;
+}
+function SelectValue({ placeholder }: any) {
+  return <>{placeholder ?? ""}</>;
+}
+function SelectContent({ children }: any) {
+  return <>{children}</>;
+}
+function SelectItem({ value, children, ...rest }: any) {
+  return (
+    <option value={value} {...rest}>
+      {children}
+    </option>
+  );
+}
+
+
 /**
  * Field Services – Virtual Toolbox (Web Prototype)
  *
@@ -32,110 +189,11 @@ import {
 // -----------------------------
 // Config + Mock Data
 // -----------------------------
-// -------------------------------------------------
-// Simple local UI components (Option A)
-// -------------------------------------------------
 
-function Button({ children, onClick, disabled, variant = "default", style, className }: any) {
-  return (
-    <button
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      className={className}
-      style={{
-        padding: "10px 12px",
-        borderRadius: 12,
-        border: "1px solid rgba(0,0,0,0.12)",
-        background: variant === "secondary" ? "transparent" : "rgba(0,0,0,0.08)",
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        ...style,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
+type Route = "toolbox" | "beacon_home" | "beacon_app" | "deployment";
+type Status = "In Stock" | "In Transit" | "In Use";
+type LocationOpt = "Birmingham Office" | "Atlanta Office" | "Jobsite Location";
 
-function Input(props: any) {
-  return (
-    <input
-      {...props}
-      style={{
-        width: "100%",
-        padding: "10px 12px",
-        borderRadius: 12,
-        border: "1px solid rgba(0,0,0,0.18)",
-        background: "transparent",
-      }}
-    />
-  );
-}
-
-function Badge({ children, variant = "default" }: any) {
-  const bg =
-    variant === "destructive"
-      ? "rgba(220,38,38,0.15)"
-      : variant === "secondary"
-      ? "rgba(0,0,0,0.06)"
-      : "rgba(0,0,0,0.1)";
-  return (
-    <span
-      style={{
-        padding: "3px 8px",
-        borderRadius: 999,
-        fontSize: 12,
-        border: "1px solid rgba(0,0,0,0.12)",
-        background: bg,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function Separator() {
-  return <div style={{ height: 1, background: "rgba(0,0,0,0.12)", margin: "10px 0" }} />;
-}
-
-// Tabs (very lightweight)
-function Tabs({ value, onValueChange, children }: any) {
-  return <div>{children}</div>;
-}
-function TabsList({ children }: any) {
-  return <div style={{ display: "flex", gap: 8 }}>{children}</div>;
-}
-function TabsTrigger({ value, children, disabled, onClick }: any) {
-  return (
-    <Button onClick={onClick} disabled={disabled} variant="secondary">
-      {children}
-    </Button>
-  );
-}
-
-// Select (native)
-function Select({ value, onValueChange, children }: any) {
-  return (
-    <select value={value} onChange={(e) => onValueChange(e.target.value)}>
-      {children}
-    </select>
-  );
-}
-function SelectItem({ value, children }: any) {
-  return <option value={value}>{children}</option>;
-}
-function SelectTrigger({ children }: any) {
-  return <>{children}</>;
-}
-function SelectValue() {
-  return null;
-}
-function SelectContent({ children }: any) {
-  return <>{children}</>;
-}
 
 const API_BASE = "http://localhost:8080";
 const ORG_UUID = "2F234454-CF6D-4A0F-ADF2-F4911BA9FFA6";
@@ -1630,4 +1688,3 @@ export default function VirtualToolboxPrototype() {
     </>
   );
 }
-
