@@ -632,11 +632,11 @@ function SettingsModal({ mode, importFile, setImportFile, importResult, onImport
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontWeight: 950 }}>Appearance</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Button variant={themeKey === "light" ? "default" : "secondary"} onClick={() => setThemeKey("light")}> 
+            <Button variant={themeKey === "light" ? "default" : "secondary"} onClick={() => setThemeKey("light")}>
               <Sun style={{ height: 16, width: 16, color: theme.accent }} />
               Light
             </Button>
-            <Button variant={themeKey === "dark" ? "default" : "secondary"} onClick={() => setThemeKey("dark")}> 
+            <Button variant={themeKey === "dark" ? "default" : "secondary"} onClick={() => setThemeKey("dark")}>
               <Moon style={{ height: 16, width: 16, color: theme.accent }} />
               Dark
             </Button>
@@ -1130,6 +1130,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
+  const closingRef = useRef(false);
   const lastScanRef = useRef<{ text: string; ts: number }>({ text: "", ts: 0 });
 
   const showToast = useCallback((msg: string) => {
@@ -1147,9 +1148,15 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const addCode = useCallback(
     (code: string) => {
       const v = String(code || "").trim();
-      if (!v) return;
-      setScanned((prev) => (prev.includes(v) ? prev : [v, ...prev]));
+      if (!v) return false;
+      let added = false;
+      setScanned((prev) => {
+        if (prev.includes(v)) return prev;
+        added = true;
+        return [v, ...prev];
+      });
       showToast(`Scanned: ${v}`);
+      return true;
     },
     [showToast]
   );
@@ -1251,6 +1258,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       }
       streamRef.current = null;
     }
+
     if (videoRef.current) {
       try {
         videoRef.current.pause();
@@ -1259,8 +1267,31 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       }
       videoRef.current.srcObject = null;
     }
+
     detectorRef.current = null;
+    closingRef.current = false;
   }, []);
+
+  const closeCamera = useCallback(() => {
+    setCameraOpen(false);
+  }, []);
+
+  const commitScan = useCallback(
+    (raw: string) => {
+      const v = String(raw || "").trim();
+      if (!v) return;
+      const now = Date.now();
+      const last = lastScanRef.current;
+      if (v === last.text && now - last.ts < 900) return;
+      lastScanRef.current = { text: v, ts: now };
+      const added = addCode(v);
+      if (added && !closingRef.current) {
+        closingRef.current = true;
+        window.setTimeout(() => closeCamera(), 350);
+      }
+    },
+    [addCode, closeCamera]
+  );
 
   const scanLoop = useCallback(async () => {
     const video = videoRef.current;
@@ -1268,37 +1299,38 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
     const detector = detectorRef.current;
     if (!video || !canvas || !detector) return;
 
-    if (video.readyState >= 2) {
-      const w = video.videoWidth || 0;
-      const h = video.videoHeight || 0;
-      if (w > 0 && h > 0) {
-        if (canvas.width !== w) canvas.width = w;
-        if (canvas.height !== h) canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          try {
-            ctx.drawImage(video, 0, 0, w, h);
-            const barcodes = await detector.detect(canvas);
-            if (Array.isArray(barcodes) && barcodes.length) {
-              const raw = String(barcodes[0]?.rawValue || barcodes[0]?.value || "").trim();
-              if (raw) {
-                const now = Date.now();
-                const last = lastScanRef.current;
-                if (!(raw === last.text && now - last.ts < 900)) {
-                  lastScanRef.current = { text: raw, ts: now };
-                  addCode(raw);
-                }
+    try {
+      const barcodes = await detector.detect(video);
+      if (Array.isArray(barcodes) && barcodes.length) {
+        const raw = String(barcodes[0]?.rawValue || barcodes[0]?.value || "").trim();
+        if (raw) commitScan(raw);
+      }
+    } catch {
+      try {
+        if (video.readyState >= 2) {
+          const w = video.videoWidth || 0;
+          const h = video.videoHeight || 0;
+          if (w > 0 && h > 0) {
+            if (canvas.width !== w) canvas.width = w;
+            if (canvas.height !== h) canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, w, h);
+              const barcodes = await detector.detect(canvas);
+              if (Array.isArray(barcodes) && barcodes.length) {
+                const raw = String(barcodes[0]?.rawValue || barcodes[0]?.value || "").trim();
+                if (raw) commitScan(raw);
               }
             }
-          } catch {
-            // ignore per-frame errors
           }
         }
+      } catch {
+        return;
       }
     }
 
     rafRef.current = requestAnimationFrame(scanLoop);
-  }, [addCode]);
+  }, [commitScan]);
 
   useEffect(() => {
     if (!cameraOpen) {
@@ -1310,6 +1342,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
     (async () => {
       setCameraError(null);
+      closingRef.current = false;
 
       try {
         // @ts-ignore
@@ -1330,23 +1363,26 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       }
 
       const Detector = await resolveBarcodeDetectorCtor();
-      if (Detector) {
-        try {
-          const desired = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"];
-          let supported: string[] | null = null;
-          const AnyDetector: any = Detector as any;
-          if (typeof AnyDetector.getSupportedFormats === "function") {
-            try {
-              supported = await AnyDetector.getSupportedFormats();
-            } catch {
-              supported = null;
-            }
+      if (!Detector) {
+        setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
+        return;
+      }
+
+      try {
+        const desired = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"];
+        let supported: string[] | null = null;
+        const AnyDetector: any = Detector as any;
+        if (typeof AnyDetector.getSupportedFormats === "function") {
+          try {
+            supported = await AnyDetector.getSupportedFormats();
+          } catch {
+            supported = null;
           }
-          const formats = supported ? desired.filter((f) => supported!.includes(f)) : desired;
-          detectorRef.current = formats.length ? new (Detector as any)({ formats }) : new (Detector as any)();
-        } catch {
-          detectorRef.current = null;
         }
+        const formats = supported ? desired.filter((f) => supported!.includes(f)) : desired;
+        detectorRef.current = formats.length ? new (Detector as any)({ formats }) : new (Detector as any)();
+      } catch {
+        detectorRef.current = null;
       }
 
       try {
@@ -1359,6 +1395,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         streamRef.current = stream;
         video.srcObject = stream;
         await video.play();
+
         if (!detectorRef.current) {
           setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
           return;
@@ -1380,15 +1417,11 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         return;
       }
     };
-  }, [cameraOpen, scanLoop, stopCamera, addCode]);
+  }, [cameraOpen, scanLoop, stopCamera]);
 
   const openCamera = useCallback(() => {
     setCameraError(null);
     setCameraOpen(true);
-  }, []);
-
-  const closeCamera = useCallback(() => {
-    setCameraOpen(false);
   }, []);
 
   return (
@@ -1538,7 +1571,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, borderBottom: "1px solid rgba(255,255,255,0.14)", gap: 10 }}>
-              <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: 0.2 }}>SCAN BARCODES</div>
+              <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: 0.2 }}>SCAN BARCODE</div>
               <button
                 onClick={closeCamera}
                 style={{
@@ -1565,7 +1598,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                 <canvas ref={canvasRef} style={{ display: "none" }} />
               </div>
               {cameraError ? <div style={{ marginTop: 10, fontSize: 12, color: "#ffb4b4" }}>{cameraError}</div> : null}
-              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Keep scanning. Each scan adds to your list.</div>
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Hover over a barcode. It will add to your list and close automatically.</div>
             </div>
           </div>
         </div>
@@ -1696,14 +1729,6 @@ export default function VirtualToolboxPrototype() {
     setSelectedRow(null);
     setBeaconTab("nearby");
     setSimTargetKey(null);
-  }, []);
-
-  const openBeacon = useCallback(() => {
-    setRoute("beacon_home");
-  }, []);
-
-  const openDeployment = useCallback(() => {
-    setRoute("deployment");
   }, []);
 
   const refreshBeaconAssets = useCallback(
