@@ -72,6 +72,8 @@ type BadgeVariant = "default" | "secondary" | "destructive";
 
 type ButtonVariant = "default" | "secondary" | "destructive";
 
+type DetectorCtor = new (opts?: any) => { detect: (image: any) => Promise<any[]> };
+
 const API_BASE = "http://localhost:8080";
 const ORG_UUID = "2F234454-CF6D-4A0F-ADF2-F4911BA9FFA6";
 
@@ -214,7 +216,7 @@ function GlobalStyles({ themeKey, theme }: { themeKey: ThemeKey; theme: Theme })
         button, input, select { font: inherit; }
         input, select { color: ${theme.text}; }
         select { background: transparent; }
-        option { color: ${isDark ? "#000" : "#000"}; }
+        option { color: ${isDark ? "#fff" : "#000"}; background: ${isDark ? "#1f1f1f" : "#fff"}; }
       `}
     </style>
   );
@@ -291,7 +293,19 @@ function beaconKey(b: Beacon) {
   return `${b.uuid}|${b.major}|${b.minor}`;
 }
 
-function Button({ children, onClick, disabled, variant = "default", style }: { children: React.ReactNode; onClick?: any; disabled?: boolean; variant?: ButtonVariant; style?: any }) {
+function Button({
+  children,
+  onClick,
+  disabled,
+  variant = "default",
+  style,
+}: {
+  children: React.ReactNode;
+  onClick?: any;
+  disabled?: boolean;
+  variant?: ButtonVariant;
+  style?: any;
+}) {
   const bg =
     variant === "default"
       ? "rgba(127,127,127,0.16)"
@@ -321,6 +335,9 @@ function Button({ children, onClick, disabled, variant = "default", style }: { c
         fontWeight: 900,
         minWidth: 0,
         whiteSpace: "nowrap",
+        maxWidth: "100%",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
         ...style,
       }}
     >
@@ -341,6 +358,7 @@ function Input(props: any) {
         background: "transparent",
         outline: "none",
         minWidth: 0,
+        maxWidth: "100%",
         ...props?.style,
       }}
     />
@@ -363,6 +381,7 @@ function Badge({ children, variant = "default", style }: { children: React.React
         border: "1px solid var(--border)",
         background: bg,
         fontWeight: 900,
+        maxWidth: "100%",
         ...style,
       }}
     >
@@ -385,6 +404,7 @@ function SurfaceCard({ children, theme, style }: { children: React.ReactNode; th
         border: `1px solid ${theme.border}`,
         minWidth: 0,
         maxWidth: "100%",
+        overflow: "hidden",
         ...style,
       }}
     >
@@ -435,9 +455,9 @@ function BrandMark({ color, size = 18 }: { color: string; size?: number }) {
 
 function BottomNav({ left, center, right }: { left: React.ReactNode; center: React.ReactNode; right: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "center", minWidth: 0 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "center", minWidth: 0, maxWidth: "100%" }}>
       <div style={{ display: "flex", justifyContent: "flex-start", minWidth: 0 }}>{left}</div>
-      <div style={{ display: "flex", justifyContent: "center" }}>{center}</div>
+      <div style={{ display: "flex", justifyContent: "center", minWidth: 0, overflow: "hidden" }}>{center}</div>
       <div style={{ display: "flex", justifyContent: "flex-end", minWidth: 0 }}>{right}</div>
     </div>
   );
@@ -460,8 +480,9 @@ function PhoneFrame({ children, bottomBar, theme }: { children: React.ReactNode;
     >
       <div
         style={{
-          height: "min(calc(100vh - 32px), 760px, calc((100vw - 32px) * 16 / 9))",
-          width: "min(calc(100vw - 32px), 390px, calc((100vh - 32px) * 9 / 16))",
+          width: "min(calc(100vw - 32px), 390px)",
+          maxHeight: "calc(100vh - 32px)",
+          aspectRatio: "9 / 16",
           borderRadius: 36,
           overflow: "hidden",
           display: "flex",
@@ -470,8 +491,8 @@ function PhoneFrame({ children, bottomBar, theme }: { children: React.ReactNode;
           color: theme.text,
           border: `1px solid ${theme.border}`,
           boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
-          minHeight: 0,
           minWidth: 0,
+          minHeight: 0,
         }}
       >
         <div
@@ -490,7 +511,7 @@ function PhoneFrame({ children, bottomBar, theme }: { children: React.ReactNode;
         >
           {children}
         </div>
-        {bottomBar ? <div style={{ padding: 12, borderTop: `1px solid ${theme.border}`, background: theme.bg }}>{bottomBar}</div> : null}
+        {bottomBar ? <div style={{ padding: 12, borderTop: `1px solid ${theme.border}`, background: theme.bg, minWidth: 0 }}>{bottomBar}</div> : null}
       </div>
     </div>
   );
@@ -511,6 +532,7 @@ function Select({ value, onValueChange, children, theme }: { value: any; onValue
         fontWeight: 900,
         minWidth: 0,
         color: theme.text,
+        maxWidth: "100%",
       }}
     >
       {children}
@@ -522,19 +544,33 @@ function SelectItem({ value, children }: { value: any; children: React.ReactNode
   return <option value={value}>{children}</option>;
 }
 
-function TabRow({ tab, setTab, disableFind, theme }: { tab: BeaconTab; setTab: (t: BeaconTab) => void; disableFind: boolean; theme: Theme }) {
+function TabRow({ tab, setTab, disableFind }: { tab: BeaconTab; setTab: (t: BeaconTab) => void; disableFind: boolean }) {
   const mk = (label: string, val: BeaconTab, disabled?: boolean) => (
     <Button
       key={val}
       variant={tab === val ? "default" : "secondary"}
       onClick={() => setTab(val)}
       disabled={disabled}
-      style={{ width: "100%", justifyContent: "center", borderRadius: 16 }}
+      style={{
+        width: "100%",
+        justifyContent: "center",
+        borderRadius: 16,
+        padding: "10px 8px",
+        fontSize: 13,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
     >
       {label}
     </Button>
   );
-  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>{[mk("Nearby", "nearby"), mk("Commission", "commission"), mk("Find", "find", disableFind)]}</div>;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, maxWidth: "100%", minWidth: 0, overflow: "hidden" }}>
+      {mk("Nearby", "nearby")}
+      {mk("Commission", "commission")}
+      {mk("Find", "find", disableFind)}
+    </div>
+  );
 }
 
 function AvatarIcon({ assetType, theme }: { assetType: string; theme: Theme }) {
@@ -593,11 +629,11 @@ function SettingsModal({ mode, importFile, setImportFile, importResult, onImport
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontWeight: 950 }}>Appearance</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Button variant={themeKey === "light" ? "default" : "secondary"} onClick={() => setThemeKey("light")}>
+            <Button variant={themeKey === "light" ? "default" : "secondary"} onClick={() => setThemeKey("light")}> 
               <Sun style={{ height: 16, width: 16, color: theme.accent }} />
               Light
             </Button>
-            <Button variant={themeKey === "dark" ? "default" : "secondary"} onClick={() => setThemeKey("dark")}>
+            <Button variant={themeKey === "dark" ? "default" : "secondary"} onClick={() => setThemeKey("dark")}> 
               <Moon style={{ height: 16, width: 16, color: theme.accent }} />
               Dark
             </Button>
@@ -661,11 +697,12 @@ function TileButton({ title, subtitle, icon, onClick, theme }: any) {
           background: "rgba(127,127,127,0.12)",
           border: "1px solid rgba(127,127,127,0.22)",
           color: theme.accent,
+          flex: "0 0 auto",
         }}
       >
         {icon}
       </div>
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, maxWidth: "100%" }}>
         <div style={{ fontWeight: 950, fontSize: 16, color: theme.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
         <div style={{ fontSize: 12, color: theme.muted, marginTop: 3, lineHeight: 1.35 }}>{subtitle}</div>
       </div>
@@ -723,19 +760,19 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
       }
     >
       <Header
-      title={
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0, maxWidth: "100%" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: theme.accent, flex: "0 0 auto" }}>
-            <BrandMark color={theme.accent} size={18} />
-          </span>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Virtual Toolbox</span>
-        </div>
-      }
-      subtitle="Select a tool."
-      theme={theme}
-    />
+        title={
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0, maxWidth: "100%" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: theme.accent, flex: "0 0 auto" }}>
+              <BrandMark color={theme.accent} size={18} />
+            </span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Virtual Toolbox</span>
+          </div>
+        }
+        subtitle="Select a tool."
+        theme={theme}
+      />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0, maxWidth: "100%" }}>
         <TileButton title="Beacon Finder" subtitle="List nearby assets and open a Find view." icon={<Radar style={{ height: 22, width: 22 }} />} onClick={onOpenBeacon} theme={theme} />
         <TileButton title="Asset Deployment" subtitle="Scan barcodes and submit a deployment form." icon={<ScanLine style={{ height: 22, width: 22 }} />} onClick={onOpenDeployment} theme={theme} />
       </div>
@@ -768,7 +805,7 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
       <Header title="Beacon Finder" subtitle="Choose a project." theme={theme} leftGlyph={<Radar style={{ height: 18, width: 18, color: theme.accent }} />} />
 
       <SurfaceCard theme={theme}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, maxWidth: "100%" }}>
           <div style={{ fontWeight: 950, fontSize: 13, color: theme.muted }}>Project</div>
           <Select value={selectedMajor} onValueChange={setSelectedMajor} theme={theme}>
             <SelectItem value="">Select location</SelectItem>
@@ -795,7 +832,7 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
 
 function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, maxWidth: "100%" }}>
       {rows.length === 0 ? <div style={{ fontSize: 13, color: theme.muted }}>No assets match the current filter.</div> : null}
       {rows.map((row: any) => {
         const feet = ft(row.meters);
@@ -805,8 +842,8 @@ function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
 
         return (
           <SurfaceCard key={row.key} theme={theme}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minWidth: 0 }}>
-              <div style={{ display: "flex", gap: 12, minWidth: 0, flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minWidth: 0, maxWidth: "100%" }}>
+              <div style={{ display: "flex", gap: 12, minWidth: 0, flex: 1, maxWidth: "100%" }}>
                 <div
                   style={{
                     height: 38,
@@ -822,18 +859,18 @@ function NearbyList({ rows, jobsiteName, onFind, theme }: any) {
                   <AvatarIcon assetType={row.asset.assetType} theme={theme} />
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1 }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, minWidth: 0 }}>
-                    <div style={{ fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.asset.displayName}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: 1, maxWidth: "100%" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, minWidth: 0, maxWidth: "100%" }}>
+                    <div style={{ fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{row.asset.displayName}</div>
                     <Badge variant={st.variant}>{st.label}</Badge>
                     {row.fresh ? <Badge>Live</Badge> : <Badge variant="secondary">Out of range</Badge>}
                   </div>
 
-                  <div style={{ fontSize: 12, color: theme.muted, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 12, color: theme.muted, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
                     {jobsiteName(row.asset.jobsiteMajor)}{row.asset.locationHint ? ` • ${row.asset.locationHint}` : ""}
                   </div>
 
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, fontSize: 12, minWidth: 0 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, fontSize: 12, minWidth: 0, maxWidth: "100%" }}>
                     <div style={{ fontWeight: 950, color: theme.text }}>Distance: {row.fresh ? (feet == null ? "Unknown" : `${Math.round(feet)} ft`) : "Unknown"}</div>
                     <div style={{ display: "inline-flex", alignItems: "center", gap: 6, color: theme.muted }}>
                       <TrendIcon style={{ height: 16, width: 16, color: theme.accent }} />
@@ -905,9 +942,9 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
 
   return (
     <SurfaceCard theme={theme}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minWidth: 0 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 950, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedRow.asset.displayName}</div>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, minWidth: 0, maxWidth: "100%" }}>
+        <div style={{ minWidth: 0, maxWidth: "100%" }}>
+          <div style={{ fontWeight: 950, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{selectedRow.asset.displayName}</div>
           <div style={{ fontSize: 12, color: theme.muted }}>Beacon: major {selectedRow.beacon.major} • minor {selectedRow.beacon.minor}</div>
         </div>
         <Button variant="secondary" onClick={onBack} style={{ padding: "10px 12px" }}>
@@ -925,21 +962,19 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
         </Badge>
       </div>
 
-      <div style={{ marginTop: 12, borderRadius: 18, padding: 16, border: `1px solid ${theme.border}`, background: theme.surface }}>
+      <div style={{ marginTop: 12, borderRadius: 18, padding: 16, border: `1px solid ${theme.border}`, background: theme.surface, maxWidth: "100%" }}>
         <div style={{ fontSize: 12, color: theme.muted, fontWeight: 950 }}>Estimated distance</div>
         <div style={{ fontSize: 40, fontWeight: 950, letterSpacing: -0.6, marginTop: 6, color: theme.text }}>{isLive ? (selectedFeet == null ? "Unknown" : `${Math.round(selectedFeet)} ft`) : "Unknown"}</div>
-        <div style={{ fontSize: 12, color: theme.muted, marginTop: 6 }}>
-          {isLive && selectedState ? `RSSI: ${selectedState.lastRssi ?? "—"} dBm • Updated ${formatAge(nowMs() - selectedState.lastSeenMs)} ago` : "Asset is out of range or offline."}
-        </div>
+        <div style={{ fontSize: 12, color: theme.muted, marginTop: 6 }}>{isLive && selectedState ? `RSSI: ${selectedState.lastRssi ?? "—"} dBm • Updated ${formatAge(nowMs() - selectedState.lastSeenMs)} ago` : "Asset is out of range or offline."}</div>
       </div>
 
-      <div style={{ marginTop: 12, borderRadius: 18, padding: 16, border: `1px solid ${theme.border}`, background: theme.surface }}>
+      <div style={{ marginTop: 12, borderRadius: 18, padding: 16, border: `1px solid ${theme.border}`, background: theme.surface, maxWidth: "100%" }}>
         <div style={{ fontSize: 12, color: theme.muted, fontWeight: 950 }}>GPS demo distance</div>
         <div style={{ marginTop: 6, fontSize: 14, fontWeight: 950, color: theme.text }}>{gpsFeet == null ? "Unknown" : `${Math.round(gpsFeet)} ft`}</div>
         <div style={{ fontSize: 12, color: theme.muted, marginTop: 6 }}>{geoErr ? geoErr : geoPos ? `Accuracy ±${Math.round(geoAcc || 0)}m` : "Waiting for location…"}</div>
       </div>
 
-      <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 10, maxWidth: "100%" }}>
         <Button variant={simTargetKey === selectedRow.key ? "default" : "secondary"} onClick={() => setSimTargetKey(selectedRow.key)}>
           <Radar style={{ height: 16, width: 16 }} />
           Simulate walking toward
@@ -956,14 +991,14 @@ function FindScreen({ selectedRow, selectedState, onBack, simTargetKey, setSimTa
 function CommissionScreen({ jobsites, commMajor, setCommMajor, commMinor, setCommMinor, commType, setCommType, commTag, setCommTag, onSave, theme }: any) {
   return (
     <SurfaceCard theme={theme}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, maxWidth: "100%" }}>
         <QrCode style={{ height: 18, width: 18, color: theme.accent }} />
-        <div style={{ fontWeight: 950, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Commission a beacon</div>
+        <div style={{ fontWeight: 950, fontSize: 16, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>Commission a beacon</div>
       </div>
 
       <Separator />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, maxWidth: "100%" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ fontSize: 12, fontWeight: 950, color: theme.muted }}>Project</div>
           <Select value={String(commMajor)} onValueChange={setCommMajor} theme={theme}>
@@ -1026,11 +1061,11 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
       <Header title="Beacon Finder" subtitle="Nearby assets and Find view." theme={theme} leftGlyph={<Radar style={{ height: 18, width: 18, color: theme.accent }} />} />
 
       <SurfaceCard theme={theme}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
-          <TabRow tab={tab} setTab={setTab} disableFind={!selectedRow} theme={theme} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, maxWidth: "100%" }}>
+          <TabRow tab={tab} setTab={setTab} disableFind={!selectedRow} />
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
-            <div style={{ position: "relative", minWidth: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0, maxWidth: "100%" }}>
+            <div style={{ position: "relative", minWidth: 0, maxWidth: "100%" }}>
               <Search style={{ height: 16, width: 16, position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: theme.muted }} />
               <Input value={q} onChange={(e: any) => setQ(e.target.value)} placeholder="Search: tag, type, name, minor" style={{ paddingLeft: 38 }} />
             </div>
@@ -1049,7 +1084,9 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
 
           {tab === "nearby" ? <NearbyList rows={rows} jobsiteName={jobsiteName} onFind={onFind} theme={theme} /> : null}
 
-          {tab === "find" && selectedRow ? <FindScreen selectedRow={selectedRow} selectedState={selectedState} onBack={onBackFromFind} simTargetKey={simTargetKey} setSimTargetKey={setSimTargetKey} theme={theme} targetGeo={targetGeo} /> : null}
+          {tab === "find" && selectedRow ? (
+            <FindScreen selectedRow={selectedRow} selectedState={selectedState} onBack={onBackFromFind} simTargetKey={simTargetKey} setSimTargetKey={setSimTargetKey} theme={theme} targetGeo={targetGeo} />
+          ) : null}
 
           {tab === "commission" ? <CommissionScreen jobsites={jobsites} {...commissionProps} theme={theme} /> : null}
         </div>
@@ -1063,6 +1100,12 @@ function BeaconApp({ headerBadge, jobsites, jobsiteMajor, setJobsiteMajor, q, se
       </div>
     </PhoneFrame>
   );
+}
+
+async function resolveBarcodeDetectorCtor(): Promise<DetectorCtor | null> {
+  const win: any = typeof window === "undefined" ? null : (window as any);
+  if (win?.BarcodeDetector) return win.BarcodeDetector as DetectorCtor;
+  return null;
 }
 
 function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: any) {
@@ -1227,7 +1270,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
           if (raw) {
             const now = Date.now();
             const last = lastScanRef.current;
-            if (!(raw === last.text && now - last.ts < 1000)) {
+            if (!(raw === last.text && now - last.ts < 900)) {
               lastScanRef.current = { text: raw, ts: now };
               addCode(raw);
             }
@@ -1256,7 +1299,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         // @ts-ignore
         if ((screen as any)?.orientation?.lock) await (screen as any).orientation.lock("portrait");
       } catch {
-        // ignore
+        return;
       }
 
       if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -1264,21 +1307,25 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         return;
       }
 
-      const AnyBarcodeDetector: any = (window as any).BarcodeDetector;
-      if (!AnyBarcodeDetector) {
+      const Detector = await resolveBarcodeDetectorCtor();
+      if (!Detector) {
         setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
         return;
       }
 
       try {
-        let supported: string[] | null = null;
-        if (typeof AnyBarcodeDetector.getSupportedFormats === "function") {
-          supported = await AnyBarcodeDetector.getSupportedFormats();
-        }
         const desired = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"];
+        let supported: string[] | null = null;
+        const AnyDetector: any = Detector as any;
+        if (typeof AnyDetector.getSupportedFormats === "function") {
+          try {
+            supported = await AnyDetector.getSupportedFormats();
+          } catch {
+            supported = null;
+          }
+        }
         const formats = supported ? desired.filter((f) => supported!.includes(f)) : desired;
-        const detector = formats.length ? new AnyBarcodeDetector({ formats }) : new AnyBarcodeDetector();
-        detectorRef.current = detector;
+        detectorRef.current = formats.length ? new (Detector as any)({ formats }) : new (Detector as any)();
       } catch {
         setCameraError("Barcode scanning is not available. Use manual entry.");
         return;
@@ -1308,7 +1355,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         // @ts-ignore
         if ((screen as any)?.orientation?.unlock) (screen as any).orientation.unlock();
       } catch {
-        // ignore
+        return;
       }
     };
   }, [cameraOpen, scanLoop, stopCamera]);
@@ -1347,31 +1394,31 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         <Header title="Asset Deployment" subtitle="Scan barcodes and submit." theme={theme} leftGlyph={<ScanLine style={{ height: 18, width: 18, color: theme.accent }} />} />
 
         <SurfaceCard theme={theme}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: "100%", minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", maxWidth: "100%", minWidth: 0, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: "100%" }}>
               <ClipboardList style={{ height: 18, width: 18, color: theme.accent }} />
               <div style={{ fontWeight: 950 }}>Ticket</div>
             </div>
 
             <Input value={ticket} onChange={(e: any) => setTicket(e.target.value)} placeholder="e.g., INC-10001" />
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", maxWidth: "100%" }}>
               <Button variant="secondary" onClick={lookupTicket}>
                 Check ticket
               </Button>
             </div>
 
-            {lookupResult ? <div style={{ fontSize: 13, color: lookupResult.ok ? theme.text : "rgba(220,38,38,0.95)" }}>{lookupResult.message}</div> : null}
+            {lookupResult ? <div style={{ fontSize: 13, color: lookupResult.ok ? theme.text : "rgba(220,38,38,0.95)", maxWidth: "100%" }}>{lookupResult.message}</div> : null}
 
             <Separator />
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, maxWidth: "100%" }}>
               <ScanLine style={{ height: 18, width: 18, color: theme.accent }} />
               <div style={{ fontWeight: 950 }}>Scan assets</div>
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", width: "100%", minWidth: 0, maxWidth: "100%" }}>
-              <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+              <div style={{ flex: "1 1 180px", minWidth: 0, maxWidth: "100%" }}>
                 <Input value={scanInput} onChange={(e: any) => setScanInput(e.target.value)} placeholder="Barcode" />
               </div>
               <Button onClick={addManual} style={{ flex: "0 0 auto" }}>
@@ -1385,12 +1432,12 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             </div>
 
             {scanned.length ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 0, maxWidth: "100%" }}>
                 <div style={{ fontSize: 13, fontWeight: 950 }}>Scanned ({scanned.length})</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, maxWidth: "100%" }}>
                   {scanned.map((code) => (
-                    <div key={code} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, borderRadius: 14, padding: "10px 12px", border: `1px solid ${theme.border}`, minWidth: 0 }}>
-                      <div style={{ fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{code}</div>
+                    <div key={code} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, borderRadius: 14, padding: "10px 12px", border: `1px solid ${theme.border}`, minWidth: 0, maxWidth: "100%" }}>
+                      <div style={{ fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{code}</div>
                       <Button variant="secondary" onClick={() => removeScan(code)} style={{ padding: "10px 12px", flex: "0 0 auto" }}>
                         Remove
                       </Button>
@@ -1404,8 +1451,8 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
             <Separator />
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, minWidth: 0 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, minWidth: 0, maxWidth: "100%" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, maxWidth: "100%" }}>
                 <div style={{ fontSize: 12, fontWeight: 950, color: theme.muted }}>Set status</div>
                 <Select value={status} onValueChange={setStatus as any} theme={theme}>
                   {STATUS_OPTIONS.map((s) => (
@@ -1416,7 +1463,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                 </Select>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, maxWidth: "100%" }}>
                 <div style={{ fontSize: 12, fontWeight: 950, color: theme.muted }}>Set location</div>
                 <Select value={location} onValueChange={setLocation as any} theme={theme}>
                   {LOCATION_OPTIONS.map((l) => (
@@ -1428,12 +1475,12 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", maxWidth: "100%" }}>
               <Button onClick={submit}>Submit</Button>
               <Badge variant="secondary">Attaches assets to ticket if missing</Badge>
             </div>
 
-            {submitResult ? <div style={{ fontSize: 13, color: submitResult.ok ? theme.text : "rgba(220,38,38,0.95)" }}>{submitResult.message}</div> : null}
+            {submitResult ? <div style={{ fontSize: 13, color: submitResult.ok ? theme.text : "rgba(220,38,38,0.95)", maxWidth: "100%" }}>{submitResult.message}</div> : null}
           </div>
         </SurfaceCard>
       </PhoneFrame>
@@ -1451,6 +1498,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             alignItems: "center",
             justifyContent: "center",
             padding: 12,
+            fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
           }}
         >
           <div
@@ -1462,14 +1510,13 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
               border: "1px solid rgba(255,255,255,0.18)",
               background: "#0b0b0b",
               color: "#fff",
-              fontFamily: "ui-rounded, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
               boxShadow: "0 28px 80px rgba(0,0,0,0.55)",
               minWidth: 0,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
-              <div style={{ fontWeight: 950, fontSize: 14 }}>Scan Barcodes</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, borderBottom: "1px solid rgba(255,255,255,0.14)", gap: 10 }}>
+              <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: 0.2 }}>SCAN BARCODES</div>
               <button
                 onClick={closeCamera}
                 style={{
@@ -1495,7 +1542,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                 <video ref={videoRef} playsInline muted style={{ width: "100%", height: "auto", display: "block" }} />
               </div>
               {cameraError ? <div style={{ marginTop: 10, fontSize: 12, color: "#ffb4b4" }}>{cameraError}</div> : null}
-              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Keep scanning. Each scan will add to your list.</div>
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Keep scanning. Each scan adds to your list.</div>
             </div>
           </div>
         </div>
@@ -1552,8 +1599,7 @@ export default function VirtualToolboxPrototype() {
 
   const theme = THEMES[themeKey];
 
-  const headerBadge =
-    mode === "checking" ? <Badge variant="secondary">Checking…</Badge> : mode === "backend" ? <Badge>Backend</Badge> : <Badge variant="secondary">Mock</Badge>;
+  const headerBadge = mode === "checking" ? <Badge variant="secondary">Checking…</Badge> : mode === "backend" ? <Badge>Backend</Badge> : <Badge variant="secondary">Mock</Badge>;
 
   const [route, setRoute] = useState<Route>("toolbox");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1857,7 +1903,7 @@ export default function VirtualToolboxPrototype() {
 
         {route === "toolbox" ? (
           <>
-            <ToolboxHome headerBadge={headerBadge} onOpenBeacon={openBeacon} onOpenDeployment={openDeployment} onOpenSettings={() => setSettingsOpen(true)} theme={theme} />
+            <ToolboxHome headerBadge={headerBadge} onOpenBeacon={() => setRoute("beacon_home")} onOpenDeployment={() => setRoute("deployment")} onOpenSettings={() => setSettingsOpen(true)} theme={theme} />
             {settingsPanel}
           </>
         ) : null}
@@ -1870,7 +1916,7 @@ export default function VirtualToolboxPrototype() {
               selectedMajor={beaconHomeSelectedMajor}
               setSelectedMajor={setBeaconHomeSelectedMajor}
               onEnter={enterBeaconProject}
-              onGoToolbox={goToolbox}
+              onGoToolbox={() => setRoute("toolbox")}
               onOpenSettings={() => setSettingsOpen(true)}
               theme={theme}
             />
@@ -1880,7 +1926,7 @@ export default function VirtualToolboxPrototype() {
 
         {route === "deployment" ? (
           <>
-            <AssetDeployment headerBadge={headerBadge} onHome={goToolbox} onOpenSettings={() => setSettingsOpen(true)} mode={mode} theme={theme} />
+            <AssetDeployment headerBadge={headerBadge} onHome={() => setRoute("toolbox")} onOpenSettings={() => setSettingsOpen(true)} mode={mode} theme={theme} />
             {settingsPanel}
           </>
         ) : null}
