@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 import {
   ArrowDownRight,
   ArrowRight,
@@ -1126,6 +1127,8 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
+  const zxingRef = useRef<BrowserMultiFormatReader | null>(null);
+  const zxingActiveRef = useRef(false);
   const lastScanRef = useRef<{ text: string; ts: number }>({ text: "", ts: 0 });
 
   const showToast = useCallback((msg: string) => {
@@ -1236,6 +1239,16 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     }
+
+    zxingActiveRef.current = false;
+    if (zxingRef.current) {
+      try {
+        zxingRef.current.reset();
+      } catch {
+        return;
+      }
+    }
+
     if (streamRef.current) {
       for (const track of streamRef.current.getTracks()) {
         try {
@@ -1307,28 +1320,30 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         return;
       }
 
-      const Detector = await resolveBarcodeDetectorCtor();
-      if (!Detector) {
-        setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
+      const video = videoRef.current;
+      if (!video) {
+        setCameraError("Camera view failed to initialize.");
         return;
       }
 
-      try {
-        const desired = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"];
-        let supported: string[] | null = null;
-        const AnyDetector: any = Detector as any;
-        if (typeof AnyDetector.getSupportedFormats === "function") {
-          try {
-            supported = await AnyDetector.getSupportedFormats();
-          } catch {
-            supported = null;
+      const Detector = await resolveBarcodeDetectorCtor();
+      if (Detector) {
+        try {
+          const desired = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"];
+          let supported: string[] | null = null;
+          const AnyDetector: any = Detector as any;
+          if (typeof AnyDetector.getSupportedFormats === "function") {
+            try {
+              supported = await AnyDetector.getSupportedFormats();
+            } catch {
+              supported = null;
+            }
           }
+          const formats = supported ? desired.filter((f) => supported!.includes(f)) : desired;
+          detectorRef.current = formats.length ? new (Detector as any)({ formats }) : new (Detector as any)();
+        } catch {
+          detectorRef.current = null;
         }
-        const formats = supported ? desired.filter((f) => supported!.includes(f)) : desired;
-        detectorRef.current = formats.length ? new (Detector as any)({ formats }) : new (Detector as any)();
-      } catch {
-        setCameraError("Barcode scanning is not available. Use manual entry.");
-        return;
       }
 
       try {
@@ -1337,12 +1352,31 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
           for (const track of stream.getTracks()) track.stop();
           return;
         }
+
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
+        video.srcObject = stream;
+        await video.play();
+
+        if (detectorRef.current) {
+          rafRef.current = requestAnimationFrame(scanLoop);
+          return;
         }
-        rafRef.current = requestAnimationFrame(scanLoop);
+
+        const reader = (zxingRef.current ||= new BrowserMultiFormatReader());
+        zxingActiveRef.current = true;
+        reader.decodeFromVideoElementContinuously(video, (result) => {
+          if (!zxingActiveRef.current) return;
+          if (result) {
+            const raw = String(result.getText() || "").trim();
+            if (!raw) return;
+            const now = Date.now();
+            const last = lastScanRef.current;
+            if (!(raw === last.text && now - last.ts < 900)) {
+              lastScanRef.current = { text: raw, ts: now };
+              addCode(raw);
+            }
+          }
+        });
       } catch (e: any) {
         setCameraError(e?.message || "Unable to access camera.");
       }
@@ -1358,7 +1392,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         return;
       }
     };
-  }, [cameraOpen, scanLoop, stopCamera]);
+  }, [cameraOpen, scanLoop, stopCamera, addCode]);
 
   const openCamera = useCallback(() => {
     setCameraError(null);
