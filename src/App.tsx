@@ -1129,6 +1129,8 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  const scanIntervalRef = useRef<number | null>(null);
+  const scanInFlightRef = useRef(false);
   const detectorRef = useRef<any>(null);
   const lastScanRef = useRef<{ text: string; ts: number }>({ text: "", ts: 0 });
 
@@ -1247,6 +1249,13 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       rafRef.current = null;
     }
 
+    if (scanIntervalRef.current) {
+      window.clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+
+    scanInFlightRef.current = false;
+
     if (streamRef.current) {
       for (const track of streamRef.current.getTracks()) {
         try {
@@ -1293,38 +1302,34 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
     const detector = detectorRef.current;
 
     if (!video || !canvas || !detector) return;
+    if (scanInFlightRef.current) return;
+
+    if (video.readyState < 2) return;
+
+    const w = video.videoWidth || 0;
+    const h = video.videoHeight || 0;
+    if (w <= 0 || h <= 0) return;
+
+    scanInFlightRef.current = true;
 
     try {
-      const barcodes = await detector.detect(video);
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.drawImage(video, 0, 0, w, h);
+
+      const barcodes = await detector.detect(canvas);
       if (Array.isArray(barcodes) && barcodes.length) {
         const raw = String(barcodes[0]?.rawValue || barcodes[0]?.value || "").trim();
         if (raw) commitScan(raw);
       }
     } catch {
-      try {
-        if (video.readyState >= 2) {
-          const w = video.videoWidth || 0;
-          const h = video.videoHeight || 0;
-          if (w > 0 && h > 0) {
-            if (canvas.width !== w) canvas.width = w;
-            if (canvas.height !== h) canvas.height = h;
-            const ctx = canvas.getContext("2d");
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, w, h);
-              const barcodes = await detector.detect(canvas);
-              if (Array.isArray(barcodes) && barcodes.length) {
-                const raw = String(barcodes[0]?.rawValue || barcodes[0]?.value || "").trim();
-                if (raw) commitScan(raw);
-              }
-            }
-          }
-        }
-      } catch {
-        return;
-      }
+      return;
+    } finally {
+      scanInFlightRef.current = false;
     }
-
-    rafRef.current = requestAnimationFrame(scanLoop);
   }, [commitScan]);
 
   useEffect(() => {
@@ -1400,7 +1405,11 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         return;
       }
 
-      rafRef.current = requestAnimationFrame(scanLoop);
+      if (!scanIntervalRef.current) {
+        scanIntervalRef.current = window.setInterval(() => {
+          scanLoop();
+        }, 220) as any;
+      }
     })();
 
     return () => {
