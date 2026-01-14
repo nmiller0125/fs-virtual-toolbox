@@ -460,7 +460,7 @@ function BrandMark({ size = 18, theme }: { size?: number; theme: Theme }) {
       }}
     >
       <img
-        src="https://logos-world.net/wp-content/uploads/2024/10/Brasfield-Gorrie-Symbol.png"
+        src="https://www.pngfind.com/pngs/m/688-6885963_ampersand-poster-printing-graphic-designer-brasfield-gorrie-hd.png"
         alt="Brasfield & Gorrie"
         style={{
           width: "100%",
