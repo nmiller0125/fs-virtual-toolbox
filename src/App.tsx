@@ -1132,6 +1132,8 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const scanIntervalRef = useRef<number | null>(null);
   const scanInFlightRef = useRef(false);
   const detectorRef = useRef<any>(null);
+  const zxingControlsRef = useRef<any>(null);
+  const zxingReaderRef = useRef<any>(null);
   const lastScanRef = useRef<{ text: string; ts: number }>({ text: "", ts: 0 });
 
   const showToast = useCallback((msg: string) => {
@@ -1256,6 +1258,24 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
     scanInFlightRef.current = false;
 
+    if (zxingControlsRef.current) {
+      try {
+        zxingControlsRef.current.stop?.();
+      } catch {
+        return;
+      }
+      zxingControlsRef.current = null;
+    }
+
+    if (zxingReaderRef.current) {
+      try {
+        zxingReaderRef.current.reset?.();
+      } catch {
+        return;
+      }
+      zxingReaderRef.current = null;
+    }
+
     if (streamRef.current) {
       for (const track of streamRef.current.getTracks()) {
         try {
@@ -1377,38 +1397,62 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       }
 
       const Detector = await resolveBarcodeDetectorCtor();
-      if (!Detector) {
-        setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
-        detectorRef.current = null;
+
+      if (Detector) {
+        try {
+          const desired = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"];
+          let supported: string[] | null = null;
+          const AnyDetector: any = Detector as any;
+          if (typeof AnyDetector.getSupportedFormats === "function") {
+            try {
+              supported = await AnyDetector.getSupportedFormats();
+            } catch {
+              supported = null;
+            }
+          }
+          const formats = supported ? desired.filter((f) => supported!.includes(f)) : desired;
+          detectorRef.current = formats.length ? new (Detector as any)({ formats }) : new (Detector as any)();
+        } catch {
+          detectorRef.current = null;
+        }
+
+        if (!detectorRef.current) {
+          setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
+          return;
+        }
+
+        if (!scanIntervalRef.current) {
+          scanIntervalRef.current = window.setInterval(() => {
+            scanLoop();
+          }, 220) as any;
+        }
+
         return;
       }
 
       try {
-        const desired = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"];
-        let supported: string[] | null = null;
-        const AnyDetector: any = Detector as any;
-        if (typeof AnyDetector.getSupportedFormats === "function") {
-          try {
-            supported = await AnyDetector.getSupportedFormats();
-          } catch {
-            supported = null;
+        const mod: any = await import(/* @vite-ignore */ "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm");
+        const Reader = mod?.BrowserMultiFormatReader;
+        if (!Reader) throw new Error("ZXing load failed");
+
+        const reader = new Reader();
+        zxingReaderRef.current = reader;
+
+        const controls = reader.decodeFromVideoDevice(
+          undefined,
+          video,
+          (result: any, err: any) => {
+            if (cancelled) return;
+            const txt = result?.getText ? result.getText() : result?.text;
+            if (txt) commitScan(String(txt));
           }
-        }
-        const formats = supported ? desired.filter((f) => supported!.includes(f)) : desired;
-        detectorRef.current = formats.length ? new (Detector as any)({ formats }) : new (Detector as any)();
+        );
+
+        zxingControlsRef.current = controls;
+        setCameraError(null);
       } catch {
-        detectorRef.current = null;
-      }
-
-      if (!detectorRef.current) {
-        setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
+        setCameraError("Barcode scanning is not supported on iPhone browsers. Use manual entry, or open on Android/desktop for live scanning.");
         return;
-      }
-
-      if (!scanIntervalRef.current) {
-        scanIntervalRef.current = window.setInterval(() => {
-          scanLoop();
-        }, 220) as any;
       }
     })();
 
