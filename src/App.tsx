@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BrowserMultiFormatReader } from "@zxing/browser";
 import {
   ArrowDownRight,
   ArrowRight,
@@ -474,7 +473,7 @@ function PhoneFrame({ children, bottomBar, theme }: { children: React.ReactNode;
         justifyContent: "center",
         padding: 16,
         backgroundColor: theme.bg,
-        fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace",
         WebkitFontSmoothing: "antialiased",
         MozOsxFontSmoothing: "grayscale",
       }}
@@ -1129,8 +1128,6 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
-  const zxingRef = useRef<BrowserMultiFormatReader | null>(null);
-  const zxingActiveRef = useRef(false);
   const lastScanRef = useRef<{ text: string; ts: number }>({ text: "", ts: 0 });
 
   const showToast = useCallback((msg: string) => {
@@ -1242,15 +1239,6 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       rafRef.current = null;
     }
 
-    zxingActiveRef.current = false;
-    if (zxingRef.current) {
-      try {
-        zxingRef.current.reset();
-      } catch {
-        return;
-      }
-    }
-
     if (streamRef.current) {
       for (const track of streamRef.current.getTracks()) {
         try {
@@ -1358,27 +1346,12 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         streamRef.current = stream;
         video.srcObject = stream;
         await video.play();
-
-        if (detectorRef.current) {
-          rafRef.current = requestAnimationFrame(scanLoop);
+        if (!detectorRef.current) {
+          setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
           return;
         }
 
-        const reader = (zxingRef.current ||= new BrowserMultiFormatReader());
-        zxingActiveRef.current = true;
-        reader.decodeFromVideoElementContinuously(video, (result) => {
-          if (!zxingActiveRef.current) return;
-          if (result) {
-            const raw = String(result.getText() || "").trim();
-            if (!raw) return;
-            const now = Date.now();
-            const last = lastScanRef.current;
-            if (!(raw === last.text && now - last.ts < 900)) {
-              lastScanRef.current = { text: raw, ts: now };
-              addCode(raw);
-            }
-          }
-        });
+        rafRef.current = requestAnimationFrame(scanLoop);
       } catch (e: any) {
         setCameraError(e?.message || "Unable to access camera.");
       }
