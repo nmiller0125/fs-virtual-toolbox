@@ -77,7 +77,7 @@ const ORG_UUID = "2F234454-CF6D-4A0F-ADF2-F4911BA9FFA6";
 
 const THEMES: Record<ThemeKey, Theme> = {
   dark: {
-    accent: "#22fafa",
+    accent: "#2167ad",
     bg: "#212121",
     text: "#ffffff",
     surface: "rgba(255,255,255,0.06)",
@@ -393,7 +393,7 @@ function SurfaceCard({ children, theme, style }: { children: React.ReactNode; th
   );
 }
 
-function Header({ title, subtitle, theme, leftGlyph }: { title: string; subtitle?: string; theme: Theme; leftGlyph?: React.ReactNode }) {
+function Header({ title, subtitle, theme, leftGlyph }: { title: React.ReactNode; subtitle?: string; theme: Theme; leftGlyph?: React.ReactNode }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, maxWidth: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, maxWidth: "100%" }}>
@@ -424,6 +424,15 @@ function Header({ title, subtitle, theme, leftGlyph }: { title: string; subtitle
   );
 }
 
+function BrandMark({ color, size = 18 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
+      <path d="M12 2.5l7.5 7.5L12 17.5 4.5 10 12 2.5z" stroke={color} strokeWidth="2" />
+      <path d="M7.2 13.2l4.8 4.3 4.8-4.3" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function BottomNav({ left, center, right }: { left: React.ReactNode; center: React.ReactNode; right: React.ReactNode }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 10, alignItems: "center", minWidth: 0 }}>
@@ -451,8 +460,8 @@ function PhoneFrame({ children, bottomBar, theme }: { children: React.ReactNode;
     >
       <div
         style={{
-          height: "min(calc(100vh - 32px), 760px)",
-          width: "min(calc((100vh - 32px) * 9 / 16), 390px)",
+          height: "min(calc(100vh - 32px), 760px, calc((100vw - 32px) * 16 / 9))",
+          width: "min(calc(100vw - 32px), 390px, calc((100vh - 32px) * 9 / 16))",
           borderRadius: 36,
           overflow: "hidden",
           display: "flex",
@@ -713,7 +722,18 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
         />
       }
     >
-      <Header title="Virtual Toolbox" subtitle="Select a tool." theme={theme} />
+      <Header
+      title={
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0, maxWidth: "100%" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: theme.accent, flex: "0 0 auto" }}>
+            <BrandMark color={theme.accent} size={18} />
+          </span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Virtual Toolbox</span>
+        </div>
+      }
+      subtitle="Select a tool."
+      theme={theme}
+    />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0 }}>
         <TileButton title="Beacon Finder" subtitle="List nearby assets and open a Find view." icon={<Radar style={{ height: 22, width: 22 }} />} onClick={onOpenBeacon} theme={theme} />
@@ -1232,6 +1252,13 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
     (async () => {
       setCameraError(null);
 
+      try {
+        // @ts-ignore
+        if ((screen as any)?.orientation?.lock) await (screen as any).orientation.lock("portrait");
+      } catch {
+        // ignore
+      }
+
       if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
         setCameraError("Camera is not available in this environment.");
         return;
@@ -1244,7 +1271,13 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       }
 
       try {
-        const detector = new AnyBarcodeDetector({ formats: ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"] });
+        let supported: string[] | null = null;
+        if (typeof AnyBarcodeDetector.getSupportedFormats === "function") {
+          supported = await AnyBarcodeDetector.getSupportedFormats();
+        }
+        const desired = ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code", "pdf417", "data_matrix"];
+        const formats = supported ? desired.filter((f) => supported!.includes(f)) : desired;
+        const detector = formats.length ? new AnyBarcodeDetector({ formats }) : new AnyBarcodeDetector();
         detectorRef.current = detector;
       } catch {
         setCameraError("Barcode scanning is not available. Use manual entry.");
@@ -1271,6 +1304,12 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
     return () => {
       cancelled = true;
       stopCamera();
+      try {
+        // @ts-ignore
+        if ((screen as any)?.orientation?.unlock) (screen as any).orientation.unlock();
+      } catch {
+        // ignore
+      }
     };
   }, [cameraOpen, scanLoop, stopCamera]);
 
@@ -1423,6 +1462,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
               border: "1px solid rgba(255,255,255,0.18)",
               background: "#0b0b0b",
               color: "#fff",
+              fontFamily: "ui-rounded, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
               boxShadow: "0 28px 80px rgba(0,0,0,0.55)",
               minWidth: 0,
             }}
