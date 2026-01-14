@@ -320,6 +320,7 @@ function Button({
 
   return (
     <button
+      type="button"
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       style={{
@@ -1348,7 +1349,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         // @ts-ignore
         if ((screen as any)?.orientation?.lock) await (screen as any).orientation.lock("portrait");
       } catch {
-        return;
+        // ignore
       }
 
       if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -1414,7 +1415,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         // @ts-ignore
         if ((screen as any)?.orientation?.unlock) (screen as any).orientation.unlock();
       } catch {
-        return;
+        // ignore
       }
     };
   }, [cameraOpen, scanLoop, stopCamera]);
