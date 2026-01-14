@@ -80,7 +80,7 @@ const ORG_UUID = "2F234454-CF6D-4A0F-ADF2-F4911BA9FFA6";
 
 const THEMES: Record<ThemeKey, Theme> = {
   dark: {
-    accent: "#2167ad",
+    accent: "#22FAFA",
     bg: "#212121",
     text: "#ffffff",
     surface: "rgba(255,255,255,0.06)",
@@ -468,7 +468,7 @@ function PhoneFrame({ children, bottomBar, theme }: { children: React.ReactNode;
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -481,8 +481,8 @@ function PhoneFrame({ children, bottomBar, theme }: { children: React.ReactNode;
     >
       <div
         style={{
-          width: "min(calc(100vw - 32px), 390px)",
-          maxHeight: "calc(100vh - 32px)",
+          width: "min(calc(100dvw - 32px), 390px)",
+          maxHeight: "calc(100dvh - 32px)",
           aspectRatio: "9 / 16",
           borderRadius: 36,
           overflow: "hidden",
@@ -501,6 +501,8 @@ function PhoneFrame({ children, bottomBar, theme }: { children: React.ReactNode;
             flex: 1,
             overflowY: "auto",
             overflowX: "hidden",
+            overscrollBehavior: "contain",
+            touchAction: "pan-y",
             WebkitOverflowScrolling: "touch",
             padding: 16,
             display: "flex",
