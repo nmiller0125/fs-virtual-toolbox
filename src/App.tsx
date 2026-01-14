@@ -448,16 +448,29 @@ function Header({ title, subtitle, theme, leftGlyph }: { title: React.ReactNode;
 
 function BrandMark({ size = 18, theme }: { size?: number; theme: Theme }) {
   return (
-    <img
-      src="https://logos-world.net/wp-content/uploads/2024/10/Brasfield-Gorrie-Symbol.png"
-      alt="Brasfield & Gorrie"
+    <div
       style={{
         width: size,
         height: size,
-        display: "block",
-        filter: theme.bg === "#212121" ? "brightness(1.2) saturate(1.1)" : "none",
+        borderRadius: size / 4,
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
-    />
+    >
+      <img
+        src="https://logos-world.net/wp-content/uploads/2024/10/Brasfield-Gorrie-Symbol.png"
+        alt="Brasfield & Gorrie"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          filter: theme.bg === "#212121" ? "invert(1) hue-rotate(180deg)" : "none",
+          display: "block",
+        }}
+      />
+    </div>
   );
 }
 
