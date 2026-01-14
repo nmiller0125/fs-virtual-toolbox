@@ -563,6 +563,7 @@ function TabRow({ tab, setTab, disableFind }: { tab: BeaconTab; setTab: (t: Beac
         fontSize: 13,
         overflow: "hidden",
         textOverflow: "ellipsis",
+        maxWidth: "100%",
       }}
     >
       {label}
@@ -824,9 +825,7 @@ function BeaconHome({ headerBadge, jobsites, selectedMajor, setSelectedMajor, on
             <Button onClick={() => onEnter(selectedMajor)} disabled={!selectedMajor}>
               Enter
             </Button>
-            <Button variant="secondary" onClick={() => onEnter("all")}>
-              View all
-            </Button>
+            <Button variant="secondary" onClick={() => onEnter("all")}>View all</Button>
           </div>
         </div>
       </SurfaceCard>
@@ -1131,7 +1130,6 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
-  const closingRef = useRef(false);
   const lastScanRef = useRef<{ text: string; ts: number }>({ text: "", ts: 0 });
 
   const showToast = useCallback((msg: string) => {
@@ -1157,7 +1155,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         return [v, ...prev];
       });
       showToast(`Scanned: ${v}`);
-      return true;
+      return added;
     },
     [showToast]
   );
@@ -1270,7 +1268,6 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
     }
 
     detectorRef.current = null;
-    closingRef.current = false;
   }, []);
 
   const closeCamera = useCallback(() => {
@@ -1285,19 +1282,16 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
       const last = lastScanRef.current;
       if (v === last.text && now - last.ts < 900) return;
       lastScanRef.current = { text: v, ts: now };
-      const added = addCode(v);
-      if (added && !closingRef.current) {
-        closingRef.current = true;
-        window.setTimeout(() => closeCamera(), 350);
-      }
+      addCode(v);
     },
-    [addCode, closeCamera]
+    [addCode]
   );
 
   const scanLoop = useCallback(async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const detector = detectorRef.current;
+
     if (!video || !canvas || !detector) return;
 
     try {
@@ -1343,13 +1337,12 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
     (async () => {
       setCameraError(null);
-      closingRef.current = false;
 
       try {
         // @ts-ignore
         if ((screen as any)?.orientation?.lock) await (screen as any).orientation.lock("portrait");
       } catch {
-        // ignore
+        return;
       }
 
       if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -1363,9 +1356,25 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         return;
       }
 
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        if (cancelled) {
+          for (const track of stream.getTracks()) track.stop();
+          return;
+        }
+
+        streamRef.current = stream;
+        video.srcObject = stream;
+        await video.play();
+      } catch (e: any) {
+        setCameraError(e?.message || "Unable to access camera.");
+        return;
+      }
+
       const Detector = await resolveBarcodeDetectorCtor();
       if (!Detector) {
         setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
+        detectorRef.current = null;
         return;
       }
 
@@ -1386,26 +1395,12 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         detectorRef.current = null;
       }
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        if (cancelled) {
-          for (const track of stream.getTracks()) track.stop();
-          return;
-        }
-
-        streamRef.current = stream;
-        video.srcObject = stream;
-        await video.play();
-
-        if (!detectorRef.current) {
-          setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
-          return;
-        }
-
-        rafRef.current = requestAnimationFrame(scanLoop);
-      } catch (e: any) {
-        setCameraError(e?.message || "Unable to access camera.");
+      if (!detectorRef.current) {
+        setCameraError("Barcode scanning is not supported on this browser. Use manual entry.");
+        return;
       }
+
+      rafRef.current = requestAnimationFrame(scanLoop);
     })();
 
     return () => {
@@ -1415,7 +1410,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
         // @ts-ignore
         if ((screen as any)?.orientation?.unlock) (screen as any).orientation.unlock();
       } catch {
-        // ignore
+        return;
       }
     };
   }, [cameraOpen, scanLoop, stopCamera]);
@@ -1459,9 +1454,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             <Input value={ticket} onChange={(e: any) => setTicket(e.target.value)} placeholder="e.g., INC-10001" />
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", maxWidth: "100%" }}>
-              <Button variant="secondary" onClick={lookupTicket}>
-                Check ticket
-              </Button>
+              <Button variant="secondary" onClick={lookupTicket}>Check ticket</Button>
             </div>
 
             {lookupResult ? <div style={{ fontSize: 13, color: lookupResult.ok ? theme.text : "rgba(220,38,38,0.95)", maxWidth: "100%" }}>{lookupResult.message}</div> : null}
@@ -1494,9 +1487,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                   {scanned.map((code) => (
                     <div key={code} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, borderRadius: 14, padding: "10px 12px", border: `1px solid ${theme.border}`, minWidth: 0, maxWidth: "100%" }}>
                       <div style={{ fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{code}</div>
-                      <Button variant="secondary" onClick={() => removeScan(code)} style={{ padding: "10px 12px", flex: "0 0 auto" }}>
-                        Remove
-                      </Button>
+                      <Button variant="secondary" onClick={() => removeScan(code)} style={{ padding: "10px 12px", flex: "0 0 auto" }}>Remove</Button>
                     </div>
                   ))}
                 </div>
@@ -1512,9 +1503,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                 <div style={{ fontSize: 12, fontWeight: 950, color: theme.muted }}>Set status</div>
                 <Select value={status} onValueChange={setStatus as any} theme={theme}>
                   {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </Select>
               </div>
@@ -1523,9 +1512,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                 <div style={{ fontSize: 12, fontWeight: 950, color: theme.muted }}>Set location</div>
                 <Select value={location} onValueChange={setLocation as any} theme={theme}>
                   {LOCATION_OPTIONS.map((l) => (
-                    <SelectItem key={l} value={l}>
-                      {l}
-                    </SelectItem>
+                    <SelectItem key={l} value={l}>{l}</SelectItem>
                   ))}
                 </Select>
               </div>
@@ -1554,8 +1541,9 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             alignItems: "center",
             justifyContent: "center",
             padding: 12,
-            fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
+            fontFamily: "ui-rounded, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
           }}
+          onClick={closeCamera}
         >
           <div
             style={{
@@ -1599,7 +1587,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
                 <canvas ref={canvasRef} style={{ display: "none" }} />
               </div>
               {cameraError ? <div style={{ marginTop: 10, fontSize: 12, color: "#ffb4b4" }}>{cameraError}</div> : null}
-              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Hover over a barcode. It will add to your list and close automatically.</div>
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Point at a barcode. Each scan will add to your list. Close to stop.</div>
             </div>
           </div>
         </div>
@@ -1959,16 +1947,7 @@ export default function VirtualToolboxPrototype() {
 
         {route === "beacon_home" ? (
           <>
-            <BeaconHome
-              headerBadge={headerBadge}
-              jobsites={jobsites}
-              selectedMajor={beaconHomeSelectedMajor}
-              setSelectedMajor={setBeaconHomeSelectedMajor}
-              onEnter={enterBeaconProject}
-              onGoToolbox={() => setRoute("toolbox")}
-              onOpenSettings={() => setSettingsOpen(true)}
-              theme={theme}
-            />
+            <BeaconHome headerBadge={headerBadge} jobsites={jobsites} selectedMajor={beaconHomeSelectedMajor} setSelectedMajor={setBeaconHomeSelectedMajor} onEnter={enterBeaconProject} onGoToolbox={() => setRoute("toolbox")} onOpenSettings={() => setSettingsOpen(true)} theme={theme} />
             {settingsPanel}
           </>
         ) : null}
@@ -2002,17 +1981,7 @@ export default function VirtualToolboxPrototype() {
               onBackFromFind={onBackFromFind}
               simTargetKey={simTargetKey}
               setSimTargetKey={setSimTargetKey}
-              commissionProps={{
-                commMajor,
-                setCommMajor,
-                commMinor,
-                setCommMinor,
-                commType,
-                setCommType,
-                commTag,
-                setCommTag,
-                onSave: commission,
-              }}
+              commissionProps={{ commMajor, setCommMajor, commMinor, setCommMinor, commType, setCommType, commTag, setCommTag, onSave: commission }}
               jobsiteName={jobsiteName}
               theme={theme}
               targetGeo={selectedRow ? targetGeo[selectedRow.key] : null}
