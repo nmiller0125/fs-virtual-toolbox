@@ -446,12 +446,18 @@ function Header({ title, subtitle, theme, leftGlyph }: { title: React.ReactNode;
   );
 }
 
-function BrandMark({ color, size = 18 }: { color: string; size?: number }) {
+function BrandMark({ size = 18, theme }: { size?: number; theme: Theme }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
-      <path d="M12 2.5l7.5 7.5L12 17.5 4.5 10 12 2.5z" stroke={color} strokeWidth="2" />
-      <path d="M7.2 13.2l4.8 4.3 4.8-4.3" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <img
+      src="https://logos-world.net/wp-content/uploads/2024/10/Brasfield-Gorrie-Symbol.png"
+      alt="Brasfield & Gorrie"
+      style={{
+        width: size,
+        height: size,
+        display: "block",
+        filter: theme.bg === "#212121" ? "brightness(1.2) saturate(1.1)" : "none",
+      }}
+    />
   );
 }
 
@@ -764,18 +770,7 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
         />
       }
     >
-      <Header
-        title={
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0, maxWidth: "100%" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color: theme.accent, flex: "0 0 auto" }}>
-              <BrandMark color={theme.accent} size={18} />
-            </span>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Virtual Toolbox</span>
-          </div>
-        }
-        subtitle="Select a tool."
-        theme={theme}
-      />
+      <Header title="Virtual Toolbox" subtitle="Select a tool." theme={theme} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0, maxWidth: "100%" }}>
         <TileButton title="Beacon Finder" subtitle="List nearby assets and open a Find view." icon={<Radar style={{ height: 22, width: 22 }} />} onClick={onOpenBeacon} theme={theme} />
@@ -1573,8 +1568,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", maxWidth: "100%" }}>
               <Button onClick={submit}>Submit</Button>
-              <Badge variant="secondary">Attaches assets to ticket if missing</Badge>
-            </div>
+              </div>
 
             {submitResult ? <div style={{ fontSize: 13, color: submitResult.ok ? theme.text : "rgba(220,38,38,0.95)", maxWidth: "100%" }}>{submitResult.message}</div> : null}
           </div>
@@ -1666,6 +1660,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
             zIndex: 100,
+            fontFamily: "ui-rounded, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
           }}
         >
           {toast.msg}
