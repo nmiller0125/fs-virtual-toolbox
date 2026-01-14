@@ -213,10 +213,11 @@ function GlobalStyles({ themeKey, theme }: { themeKey: ThemeKey; theme: Theme })
         html, body, #root { height: 100%; margin: 0; padding: 0; }
         body { background: ${theme.bg}; color: ${theme.text}; overflow: auto; }
         * { box-sizing: border-box; }
-        button, input, select { font: inherit; }
-        input, select { color: ${theme.text}; }
+        button, input, select { font: inherit; color: inherit; }
+        input, select { color: ${theme.text} !important; }
+        input::placeholder { color: ${theme.muted}; opacity: 1; }
         select { background: transparent; }
-        option { color: ${isDark ? "#fff" : "#000"}; background: ${isDark ? "#1f1f1f" : "#fff"}; }
+        option { color: ${isDark ? "#fff" : "#000"} !important; background: ${isDark ? "#1f1f1f" : "#fff"} !important; }
       `}
     </style>
   );
@@ -404,7 +405,7 @@ function SurfaceCard({ children, theme, style }: { children: React.ReactNode; th
         border: `1px solid ${theme.border}`,
         minWidth: 0,
         maxWidth: "100%",
-        overflow: "hidden",
+        overflow: "visible",
         ...style,
       }}
     >
@@ -1125,6 +1126,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
   const toastTimerRef = useRef<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const detectorRef = useRef<any>(null);
@@ -1262,25 +1264,36 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
 
   const scanLoop = useCallback(async () => {
     const video = videoRef.current;
+    const canvas = canvasRef.current;
     const detector = detectorRef.current;
-    if (!video || !detector) return;
+    if (!video || !canvas || !detector) return;
 
     if (video.readyState >= 2) {
-      try {
-        const barcodes = await detector.detect(video);
-        if (Array.isArray(barcodes) && barcodes.length) {
-          const raw = String(barcodes[0]?.rawValue || "").trim();
-          if (raw) {
-            const now = Date.now();
-            const last = lastScanRef.current;
-            if (!(raw === last.text && now - last.ts < 900)) {
-              lastScanRef.current = { text: raw, ts: now };
-              addCode(raw);
+      const w = video.videoWidth || 0;
+      const h = video.videoHeight || 0;
+      if (w > 0 && h > 0) {
+        if (canvas.width !== w) canvas.width = w;
+        if (canvas.height !== h) canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          try {
+            ctx.drawImage(video, 0, 0, w, h);
+            const barcodes = await detector.detect(canvas);
+            if (Array.isArray(barcodes) && barcodes.length) {
+              const raw = String(barcodes[0]?.rawValue || barcodes[0]?.value || "").trim();
+              if (raw) {
+                const now = Date.now();
+                const last = lastScanRef.current;
+                if (!(raw === last.text && now - last.ts < 900)) {
+                  lastScanRef.current = { text: raw, ts: now };
+                  addCode(raw);
+                }
+              }
             }
+          } catch {
+            // ignore per-frame errors
           }
         }
-      } catch {
-        return;
       }
     }
 
@@ -1549,6 +1562,7 @@ function AssetDeployment({ headerBadge, onHome, onOpenSettings, mode, theme }: a
             <div style={{ padding: 12 }}>
               <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.14)", background: "#000" }}>
                 <video ref={videoRef} playsInline muted style={{ width: "100%", height: "auto", display: "block" }} />
+                <canvas ref={canvasRef} style={{ display: "none" }} />
               </div>
               {cameraError ? <div style={{ marginTop: 10, fontSize: 12, color: "#ffb4b4" }}>{cameraError}</div> : null}
               <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>Keep scanning. Each scan adds to your list.</div>
