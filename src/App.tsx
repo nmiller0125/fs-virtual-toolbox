@@ -770,7 +770,12 @@ function ToolboxHome({ headerBadge, onOpenBeacon, onOpenDeployment, onOpenSettin
         />
       }
     >
-      <Header title="Virtual Toolbox" subtitle="Select a tool." theme={theme} />
+      <Header
+        title="Virtual Toolbox"
+        subtitle="Select a tool."
+        theme={theme}
+        leftGlyph={<BrandMark size={18} theme={theme} />}
+      />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%", minWidth: 0, maxWidth: "100%" }}>
         <TileButton title="Beacon Finder" subtitle="List nearby assets and open a Find view." icon={<Radar style={{ height: 22, width: 22 }} />} onClick={onOpenBeacon} theme={theme} />
